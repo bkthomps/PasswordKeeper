@@ -79,17 +79,15 @@
  *
  *****************************************************************************/
 
-var masterPassword;
+let masterPassword;
 
 /**
  * This is an async function that should return the username and password to send
  * to the server for login credentials.
  */
 async function credentials(username, password) {
-  var idResult;
-
   // get any information needed to log in
-  idResult = await serverRequest("identify", {"username": username});
+  const idResult = await serverRequest("identify", {"username": username});
   // bail if something went wrong
   if (!idResult.response.ok) {
     serverStatus(idResult);
@@ -104,7 +102,7 @@ async function credentials(username, password) {
  */
 function login(userInput, passInput) {
   // get the form fields
-  var username = userInput.value,
+  const username = userInput.value,
     password = passInput.value;
   masterPassword = password;
   credentials(username, password).then(function (idJson) {
@@ -140,7 +138,7 @@ function login(userInput, passInput) {
  */
 function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
   // get the form fields
-  var username = userInput.value,
+  const username = userInput.value,
     password = passInput.value,
     password2 = passInput2.value,
     email = emailInput.value,
@@ -172,13 +170,13 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
  * Called when the add password form is submitted.
  */
 async function save(siteIdInput, siteInput, userInput, passInput) {
-  var siteid = siteIdInput.value,
+  const siteid = siteIdInput.value,
     site = siteInput.value,
     siteuser = userInput.value,
     sitepasswd = passInput.value;
-  var hashedPassword = await hash(masterPassword)
-  var iv = randomBytes(16);
-  var encrypted = await encrypt(sitepasswd, hashedPassword, iv); // this will need to be populated
+  const hashedPassword = await hash(masterPassword)
+  const iv = randomBytes(16);
+  const encrypted = await encrypt(sitepasswd, hashedPassword, iv); // this will need to be populated
 
   // send the data, along with the encrypted password, to the server
   serverRequest("save",  // the resource to call
