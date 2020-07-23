@@ -79,7 +79,7 @@
  *
  *****************************************************************************/
 
-
+var masterPassword;
 /**
  * This is an async function that should return the username and password to send
  * to the server for login credentials.
@@ -105,10 +105,10 @@ function login(userInput, passInput) {
   // get the form fields
   var username = userInput.value,
       password = passInput.value;
-      
+  masterPassword = password;
   credentials(username, password).then(function(idJson) {
     // do any needed work with the credentials
-  
+
     // Send a login request to the server.
     serverRequest("login", // resource to call
                   {"username":username, "password":password} // this should be populated with needed parameters
@@ -121,11 +121,12 @@ function login(userInput, passInput) {
         let userdisplay = document.getElementById("userdisplay");
         // userdisplay refers to the DOM element that students will need to
         // update to show the data returned by the server.
-      
+        userdisplay.innerHTML = result.json.fullname;
         showContent("dashboard");
 
       } else {
         // If the login failed, show the login page with an error message.
+        console.log(result);
         serverStatus(result);
       }
     });
@@ -145,7 +146,10 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
       fullname  = fullNameInput.value;
 
   // do any preprocessing on the user input here before sending to the server
-  
+  if (password !== password2) {
+    console.log("Password doesn't match");
+    return 0;
+  }
   // send the signup form to the server
   serverRequest("signup",  // resource to call
                 {"username":username, "password":password, "email":email, "fullname":fullname} // this should be populated with needed parameters
@@ -166,16 +170,19 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
 /**
  * Called when the add password form is submitted.
  */
-function save(siteIdInput, siteInput, userInput, passInput) {
+async function save(siteIdInput, siteInput, userInput, passInput) {
   var siteid     = siteIdInput.value,
       site       = siteInput.value,
       siteuser   = userInput.value,
-      sitepasswd = passInput.value,
-      encrypted; // this will need to be populated
+      sitepasswd = passInput.value;
+  var hashedPassword = await hash(masterPassword)
+  var iv = randomBytes(16);
+  var encrypted = await encrypt(sitepasswd, hashedPassword, iv); // this will need to be populated
   
   // send the data, along with the encrypted password, to the server
   serverRequest("save",  // the resource to call
-                {"siteid":siteid, "site":site, "siteuser":siteuser, "sitepasswd":encrypted} // this should be populated with any parameters the server needs
+                {"siteid":siteid, "site":site, "siteuser":siteuser, "sitepasswd":encrypted, 
+                "hashedPassword":hashedPassword, "iv":iv} // this should be populated with any parameters the server needs
   ).then(function(result) {
     if (result.response.ok) {
       // any work after a successful save should be done here

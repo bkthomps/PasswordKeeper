@@ -136,7 +136,19 @@ function signup(&$request, &$response, &$db) {
   $password = $request->param("password"); // The requested password from the client
   $email    = $request->param("email");    // The requested email address from the client
   $fullname = $request->param("fullname"); // The requested full name from the client
-  
+  $hashedPassword = openssl_digest($password, "SHA256");
+
+  $sql = "INSERT INTO user(username, passwd, email, fullname, modified) VALUES (:username, :passwd,
+          :email, :fullname, :modified)";
+  $stmt = $db->prepare($sql);
+  $stmt->bindValue(':username', $username);
+  $stmt->bindValue(':passwd', $hashedPassword);
+  $stmt->bindValue(':email', $email);
+  $stmt->bindValue(':fullname', $fullname);
+  $now = date("c");
+  $stmt->bindValue(':modified', $now);
+  $stmt->execute();
+
   // Respond with a message of success.
   $response->set_http_code(201); // Created
   $response->success("Account created.");
@@ -170,8 +182,23 @@ function identify(&$request, &$response, &$db) {
 function login(&$request, &$response, &$db) {
   $username = $request->param("username"); // The username with which to log in
   $password = $request->param("password"); // The password with which to log in
+  $hashedPassword = openssl_digest($password, "SHA256");
 
-  $fullname = "Default Full Name";
+  $sql = "SELECT fullname, COUNT(*) as count FROM user where username = :username AND passwd = :passwd";
+  $stmt = $db->prepare($sql);
+  $stmt->bindValue(':username', $username);
+  $stmt->bindValue(':passwd', $hashedPassword);
+  $stmt->execute();
+  $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  log_to_console($row['count']);
+  if ($row['count'] == 0) {
+    log_to_console("Username or password incorrect");
+    $response->set_http_code(401); //Unauthorized
+    $response->failure("Username or password incorrect");
+    return false;
+  }
+  $fullname = $row['fullname'];
+  log_to_console($fullname);
 
   $response->set_http_code(200); // OK
   $response->set_data("fullname", $fullname); // Return the full name to the client for display
@@ -207,6 +234,25 @@ function save(&$request, &$response, &$db) {
   $site       = $request->param("site");
   $siteuser   = $request->param("siteuser");
   $sitepasswd = $request->param("sitepasswd");
+  $hashedPassword = $request->param("hashedPassword");
+  $iv = $request->param("iv");
+
+  $sql = "SELECT username from user where passwd = '$hashedPassword'";
+  $result = $db->query($sql);
+  $row = $result->fetch(PDO::FETCH_ASSOC);
+  $username = $row['username'];
+  $sql = "SELECT siteid, count(siteid) as count from user_safe order by siteid desc";
+  $result = $db->query($sql);
+  $row = $result->fetch(PDO::FETCH_ASSOC);
+  if ($row['count'] == 0) {
+    $siteid = 0;
+  }
+  else {
+    $siteid = $row['siteid'] + 1;
+  }
+  $now = date("c");
+  $sql = "INSERT INTO user_safe VALUES ($siteid, '$username', '$site', '$siteuser', '$sitepasswd', '$iv', '$now')";
+  $db->exec($sql);
 
   $response->set_http_code(200); // OK
   $response->success("Save to safe succeeded.");
