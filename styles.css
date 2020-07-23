@@ -1,0 +1,61 @@
+body {
+  background-color: #fff;
+}
+
+#content {
+  max-width: 960px;
+  margin: auto;
+}
+
+main {
+  border: 1px solid grey;
+  border-radius: 5px;
+  padding: 2em;
+}
+
+h1 {
+  margin: 1em;
+}
+
+#message {
+  color: royalblue;
+  margin: 1em auto;
+  padding: 1em;
+  width: 75%;
+  font-weight: bold;
+  text-align: center;
+  border: 1px solid royalblue;
+  border-radius: 5px;
+  background-color: #eee;
+}
+
+/* on load, don't show content */
+.content {
+  display: none;
+}
+
+select {
+  margin: 1em;
+}
+
+label {
+  margin-left: 1em;
+}
+
+input, output {
+  margin-top: 1em;
+}
+
+button {
+  display: block;
+  margin-top: 1em;
+}
+
+a {
+  display: block;
+  margin: 1em;
+}
+
+#signuplink {
+  margin-top: 2em;
+}

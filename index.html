@@ -1,0 +1,152 @@
+<!doctype html>
+<!-- This file contains the base HTML for the password safe client -->
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>ECE 458 Password Safe</title>
+  <meta name="description" content="ECE 458 Password Safe">
+  <meta name="author" content="Sean Kauffman">
+
+  <link rel="stylesheet" href="styles.css">
+  <script src="student.js"></script>
+  <script src="client.js"></script>
+</head>
+
+<body onload="init();">
+<div id="content">
+  <header>
+    <h1>ECE 458 Password Safe</h1>
+  </header>
+  
+  <div id="message">
+  </div>
+
+  <main>
+    <div id="login" class="content">
+      <h2>Log in</h2>
+    
+      <form>
+        <label for="username">Username</label>
+        <input type="text" placeholder="Your Username" name="username" required />
+
+        <label for="password">Password</label>
+        <input type="password" placeholder="Your Password" name="password" required />
+
+        <button type="submit">Login</button>
+      </form>
+      
+      <a href="/#signup">Sign up for new account</a>
+    </div>
+    
+    <div id="signup" class="content">
+      <h2>Sign up</h2>
+    
+      <form>
+        <div class="field">
+          <label for="username">Username: </label>
+          <input type="text" placeholder="Desired Username" name="username" required />
+        </div>
+
+        <div class="field">
+          <label for="password">Password: </label>
+          <input type="password" placeholder="Desired Password" name="password" required />
+        </div>
+        
+        <div class="field">
+          <label for="password2">Repeat Password: </label>
+          <input type="password" placeholder="Desired Password" name="password2" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email Address: </label>
+          <input type="email" placeholder="Your Email Address" name="email" required />
+        </div>
+        
+        <div class="field">
+          <label for="fullname">Full Name: </label>
+          <input type="text" placeholder="Your Full Name" name="fullname" />
+        </div>
+
+        <button type="submit">Sign up</button>
+      </form>
+    </div>
+    
+    <div id="dashboard" class="content">
+      <h2>Dashboard for <span id="userdisplay"></span></h2>
+      
+      <a href="/#save">Add a password</a>
+      <a href="/#load">Retrieve a password</a>
+      <a href="/#logout">Log out</a>
+    </div>
+    
+    <div id="save" class="content">
+      <h2>Add a password to the safe, or edit an existing one</h2>
+      
+      <p>
+      <select name="sitelist">
+        <option value="default" selected>Add a new site password</option>
+      </select>
+      </p>
+      
+      <form>
+        <input type="hidden" name="siteid"></output>
+
+        <div class="field">
+          <label for="site">Site or App: </label>
+          <input type="text" placeholder="E.g. uwaterloo.ca" name="site" required />
+        </div>
+
+        <div class="field">
+          <label for="siteuser">Site User (not required): </label>
+          <input type="text" placeholder="The user for this password" name="siteuser" />
+        </div>
+      
+        <div class="field">
+          <label for="sitepasswd">Site Password: </label>
+          <input type="password" placeholder="The password to store" name="sitepasswd" required />
+        </div>
+        
+        <button type="submit">Save the password</button>
+      </form>
+
+      <a href="/#dashboard">Dashboard</a>
+    </div>
+
+    <div id="load" class="content">
+      <h2>Load a password from the safe</h2>
+      
+      <p>
+      <select name="sitelist">
+        <option value="default" selected>Select a site</option>
+      </select>
+      </p>
+      
+      <form>
+        <div class="field">
+          <label for="site">Site or App: </label>
+          <output type="text" name="site"></output>
+        </div>
+
+        <div class="field">
+          <label for="siteuser">Site User: </label>
+          <output type="text" name="siteuser"></output>
+        </div>
+      
+        <div class="field">
+          <label for="sitepasswd">Site Password: </label>
+          <output type="text" name="sitepasswd"></output>
+        </div>
+      </form>
+
+      <a href="/#dashboard">Dashboard</a>
+    </div>
+    
+    <div id="logout" class="content">
+      <h2>Logging out...</h2>
+    </div>
+  </main>
+</div>
+</body>
+</html>
