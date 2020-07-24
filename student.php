@@ -120,6 +120,13 @@
  */
 function preflight(&$request, &$response, &$db)
 {
+  $headers = getallheaders();
+  $origin = $headers['Origin'];
+  if ($origin == null) {
+    $response->set_http_code(403);
+    $response->failure("Origin is null");
+    return false;
+  }
   $response->set_http_code(200);
   $response->success("Request OK");
   log_to_console("OK");
