@@ -226,15 +226,22 @@ function login(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
-  $sites = array();
-
-  $response->set_data("sites", $sites); // return the sites array to the client
+  $sql = "SELECT site, siteid FROM user_safe";
+  $result = $db->query($sql);
+  $rows = $result->fetchall(PDO::FETCH_ASSOC);
+  $all_sites = array();
+  $all_siteids = array();
+  foreach ($rows as $row) {
+    $site = $row["site"];
+    $siteid = $row["siteid"];
+    array_push($all_sites, $site);
+    array_push($all_siteids, $siteid);
+  }
+  $response->set_data("sites", $all_sites);
+  $response->set_data("siteids", $all_siteids);
   $response->set_http_code(200);
   $response->success("Sites with recorded passwords.");
-  log_to_console("Found and returned sites");
-
   return true;
-
 }
 
 /**
