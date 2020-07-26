@@ -143,32 +143,36 @@ function preflight(&$request, &$response, &$db)
  */
 function signup(&$request, &$response, &$db)
 {
-  $username = $request->param("username"); // The requested username from the client
-  $password = $request->param("password"); // The requested password from the client
-  $email = $request->param("email");    // The requested email address from the client
-  $fullname = $request->param("fullname"); // The requested full name from the client
-  // FIXME: password should get salted too
-  $hashedPassword = openssl_digest($password, "SHA256");
-
-  $sql = "INSERT INTO user(username, passwd, email, fullname, modified) VALUES (:username, :passwd,
-          :email, :fullname, :modified)";
-  $stmt = $db->prepare($sql);
-  $stmt->bindValue(':username', $username);
-  $stmt->bindValue(':passwd', $hashedPassword);
-  $stmt->bindValue(':email', $email);
-  $stmt->bindValue(':fullname', $fullname);
-  $now = date("c");
-  $stmt->bindValue(':modified', $now);
-  $stmt->execute();
-
-  // Respond with a message of success.
-  $response->set_http_code(201); // Created
-  $response->success("Account created.");
-  log_to_console("Account created.");
-
-  return true;
+  try {
+    $username = $request->param("username");
+    $plainTextPassword = $request->param("password");
+    $email = $request->param("email");
+    $fullName = $request->param("fullname");
+    $sql_unique = "SELECT username, email, COUNT(*) as count FROM user WHERE username = '$username' OR email = '$email'";
+    $result = $db->query($sql_unique);
+    $row = $result->fetch(PDO::FETCH_ASSOC);
+    if ($row["count"] != 0) {
+      $response->set_http_code(400);
+      $response->failure("Either username or email has already been used");
+      return false;
+    }
+    $salt = random_bytes(32);
+    $hashedPassword = openssl_digest($plainTextPassword, "SHA256");
+    $saltedHashedPassword = $salt . $hashedPassword;
+    $now = date("c");
+    $sql_user = "INSERT INTO user VALUES ('$username', '$saltedHashedPassword', '$email', '$fullName', 'true', '$now')";
+    $db->exec($sql_user);
+    $sql_login = "INSERT INTO user_login VALUES ('$username', '$salt', 'challenge', '$now')";
+    $db->exec($sql_login);
+    $response->set_http_code(201);
+    $response->success("Account created");
+    return true;
+  } catch (Exception $e) {
+    $response->set_http_code(500);
+    $response->failure("Internal server error");
+    return false;
+  }
 }
-
 
 /**
  * Handles identification requests.

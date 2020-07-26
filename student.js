@@ -133,6 +133,10 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
     status("Password must be at least 8 characters long");
     return;
   }
+  if (username.length > 200 || password.length > 200 || email.length > 200 || fullName.length > 200) {
+    status("Limit field length to 200 characters");
+    return;
+  }
   const payload = {"username": username, "password": password, "email": email, "fullname": fullName};
   serverRequest("signup", payload).then(function (result) {
     if (result.response.ok) {
