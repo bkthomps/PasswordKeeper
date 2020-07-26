@@ -226,6 +226,7 @@ function login(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
+  // FIXME: only for this specific user
   $sql = "SELECT site, siteid FROM user_safe";
   $result = $db->query($sql);
   $rows = $result->fetchall(PDO::FETCH_ASSOC);
@@ -287,14 +288,21 @@ function save(&$request, &$response, &$db)
  */
 function load(&$request, &$response, &$db)
 {
-  $site = $request->param("site");
-
+  $siteid = $request->param("siteid");
+  $sql = "SELECT site, siteuser, sitepasswd FROM user_safe WHERE siteid = '$siteid'";
+  $result = $db->query($sql);
+  $row = $result->fetch(PDO::FETCH_ASSOC);
+  $site = $row["site"];
+  $siteuser = $row["siteuser"];
+  $sitepasswd = $row["sitepasswd"];
+  log_to_console($site);
+  log_to_console($siteuser);
+  log_to_console($sitepasswd);
   $response->set_data("site", $site);
-
-  $response->set_http_code(200); // OK
+  $response->set_data("siteuser", $siteuser);
+  $response->set_data("sitepasswd", $sitepasswd);
+  $response->set_http_code(200);
   $response->success("Site data retrieved.");
-  log_to_console("Successfully retrieved site data");
-
   return true;
 }
 

@@ -204,16 +204,14 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
  * a form element.
  */
 function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) {
-  // do any preprocessing here
-
-  serverRequest("load", // the resource to call
-    {"siteid": siteid} // populate with any parameters the server needs
-  ).then(function (result) {
+  const payload = {"siteid": siteid};
+  serverRequest("load", payload).then(function (result) {
     if (result.response.ok) {
-      // do any work that needs to be done on success
-
+      siteElement.value = result.json.site;
+      userElement.value = result.json.siteuser;
+      // TODO: decrypt
+      passElement.value = result.json.sitepasswd;
     } else {
-      // on failure, show the login page and display any server status
       showContent("login");
       serverStatus(result);
     }
