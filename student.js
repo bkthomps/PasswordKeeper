@@ -86,14 +86,12 @@ let masterPassword;
  * to the server for login credentials.
  */
 async function credentials(username, password) {
-  // get any information needed to log in
-  const idResult = await serverRequest("identify", {"username": username});
-  // bail if something went wrong
+  const payload = {"username": username};
+  const idResult = await serverRequest("identify", payload);
   if (!idResult.response.ok) {
     serverStatus(idResult);
     return 0;
   }
-
   return idResult.json;
 }
 
@@ -101,35 +99,20 @@ async function credentials(username, password) {
  * Called when the user submits the log-in form.
  */
 function login(userInput, passInput) {
-  // get the form fields
-  const username = userInput.value,
-    password = passInput.value;
+  const username = userInput.value;
+  const password = passInput.value;
   masterPassword = password;
+  const payload = {"username": username, "password": password};
   credentials(username, password).then(function (idJson) {
-    // do any needed work with the credentials
-
-    // Send a login request to the server.
-    serverRequest("login", // resource to call
-      {"username": username, "password": password} // this should be populated with needed parameters
-    ).then(function (result) {
-      // If the login was successful, show the dashboard.
+    serverRequest("login", payload).then(function (result) {
       if (result.response.ok) {
-        // do any other work needed after successful login here
-
-        // display the user's full name in the userdisplay field
-        let userdisplay = document.getElementById("userdisplay");
-        // userdisplay refers to the DOM element that students will need to
-        // update to show the data returned by the server.
+        const userdisplay = document.getElementById("userdisplay");
         userdisplay.innerHTML = result.json.fullname;
         showContent("dashboard");
-
       } else {
-        // If the login failed, show the login page with an error message.
-        console.log(result);
         serverStatus(result);
       }
     });
-
   });
 }
 
@@ -137,61 +120,51 @@ function login(userInput, passInput) {
  * Called when the user submits the signup form.
  */
 function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
-  // get the form fields
-  const username = userInput.value,
-    password = passInput.value,
-    password2 = passInput2.value,
-    email = emailInput.value,
-    fullname = fullNameInput.value;
-
-  // do any preprocessing on the user input here before sending to the server
-  if (password !== password2) {
-    console.log("Password doesn't match");
-    return 0;
+  const username = userInput.value;
+  const password = passInput.value;
+  const passwordConfirm = passInput2.value;
+  const email = emailInput.value;
+  const fullName = fullNameInput.value;
+  if (password !== passwordConfirm) {
+    status("Password does not match confirmation password");
+    return;
   }
-  // send the signup form to the server
-  serverRequest("signup",  // resource to call
-    {"username": username, "password": password, "email": email, "fullname": fullname} // this should be populated with needed parameters
-  ).then(function (result) {
-    // if everything was good
+  if (password.length < 8) {
+    status("Password must be at least 8 characters long");
+    return;
+  }
+  const payload = {"username": username, "password": password, "email": email, "fullname": fullName};
+  serverRequest("signup", payload).then(function (result) {
     if (result.response.ok) {
-      // do any work needed if the signup request succeeded
-
-      // go to the login page
       showContent("login");
     }
-    // show the status message from the server
     serverStatus(result);
   });
 }
-
 
 /**
  * Called when the add password form is submitted.
  */
 async function save(siteIdInput, siteInput, userInput, passInput) {
-  const siteid = siteIdInput.value,
-    site = siteInput.value,
-    siteuser = userInput.value,
-    sitepasswd = passInput.value;
+  const siteId = siteIdInput.value;
+  const site = siteInput.value;
+  const siteUser = userInput.value;
+  const sitePassword = passInput.value;
   const hashedPassword = await hash(masterPassword)
-  const iv = randomBytes(16);
-  const encrypted = await encrypt(sitepasswd, hashedPassword, iv); // this will need to be populated
-
-  // send the data, along with the encrypted password, to the server
-  serverRequest("save",  // the resource to call
-    {
-      "siteid": siteid, "site": site, "siteuser": siteuser, "sitepasswd": encrypted,
-      "hashedPassword": hashedPassword, "iv": iv
-    } // this should be populated with any parameters the server needs
-  ).then(function (result) {
+  const siteIv = randomBytes(16);
+  const encrypted = await encrypt(sitePassword, hashedPassword, siteIv);
+  const payload = {
+    "siteid": siteId,
+    "site": site,
+    "siteuser": siteUser,
+    "sitepasswd": encrypted,
+    "hashedPassword": hashedPassword,
+    "iv": siteIv
+  };
+  serverRequest("save", payload).then(function (result) {
     if (result.response.ok) {
-      // any work after a successful save should be done here
-
-      // update the sites list
       sites("save");
     }
-    // show any server status messages
     serverStatus(result);
   });
 }
@@ -211,8 +184,8 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
       userElement.value = result.json.siteuser;
       const cypherText = result.json.sitepasswd;
       const hashedPassword = await hash(masterPassword);
-      const siteiv = result.json.siteiv;
-      passElement.value = await decrypt(cypherText, hashedPassword, siteiv);
+      const siteIv = result.json.siteiv;
+      passElement.value = await decrypt(cypherText, hashedPassword, siteIv);
     } else {
       showContent("login");
       serverStatus(result);
@@ -224,9 +197,6 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
  * Called when the logout link is clicked.
  */
 function logout() {
-  // do any preprocessing needed
-
-  // tell the server to log out
   serverRequest("logout", {}).then(function (result) {
     if (result.response.ok) {
       showContent("login");
