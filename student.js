@@ -86,6 +86,7 @@ let masterPassword;
  * to the server for login credentials.
  */
 async function credentials(username, password) {
+  // TODO: verify
   const payload = {"username": username};
   const idResult = await serverRequest("identify", payload);
   if (!idResult.response.ok) {
@@ -99,6 +100,7 @@ async function credentials(username, password) {
  * Called when the user submits the log-in form.
  */
 function login(userInput, passInput) {
+  // TODO: verify
   const username = userInput.value;
   const password = passInput.value;
   masterPassword = password;
@@ -154,6 +156,7 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
  * Called when the add password form is submitted.
  */
 async function save(siteIdInput, siteInput, userInput, passInput) {
+  // TODO: verify
   const siteId = siteIdInput.value;
   const site = siteInput.value;
   const siteUser = userInput.value;
@@ -185,6 +188,7 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
  * a form element.
  */
 function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) {
+  // TODO: verify
   const payload = {"siteid": siteid};
   serverRequest("load", payload).then(async function (result) {
     if (result.response.ok) {
@@ -205,6 +209,7 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
  * Called when the logout link is clicked.
  */
 function logout() {
+  // TODO: verify
   serverRequest("logout", {}).then(function (result) {
     if (result.response.ok) {
       showContent("login");

@@ -188,6 +188,7 @@ function signup(&$request, &$response, &$db)
  */
 function identify(&$request, &$response, &$db)
 {
+  // TODO: verify
   $username = $request->param("username"); // The username
 
   $response->set_http_code(200);
@@ -204,6 +205,7 @@ function identify(&$request, &$response, &$db)
  */
 function login(&$request, &$response, &$db)
 {
+  // TODO: verify
   $username = $request->param("username"); // The username with which to log in
   $password = $request->param("password"); // The password with which to log in
   // FIXME: password should get salted too
@@ -244,6 +246,7 @@ function login(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
+  // TODO: verify
   // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
   // FIXME: only for this specific user
   $sql = "SELECT site, siteid FROM user_safe";
@@ -271,6 +274,7 @@ function sites(&$request, &$response, &$db)
  */
 function save(&$request, &$response, &$db)
 {
+  // TODO: verify
   // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
   $site = $request->param("site");
   $siteuser = $request->param("siteuser");
@@ -308,6 +312,7 @@ function save(&$request, &$response, &$db)
  */
 function load(&$request, &$response, &$db)
 {
+  // TODO: verify
   // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
   // FIXME: only for this specific user
   $siteid = $request->param("siteid");
@@ -333,6 +338,7 @@ function load(&$request, &$response, &$db)
  */
 function logout(&$request, &$response, &$db)
 {
+  // TODO: verify
   $response->set_http_code(200);
   $response->success("Successfully logged out.");
   log_to_console("Logged out");
