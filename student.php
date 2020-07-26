@@ -289,18 +289,17 @@ function save(&$request, &$response, &$db)
 function load(&$request, &$response, &$db)
 {
   $siteid = $request->param("siteid");
-  $sql = "SELECT site, siteuser, sitepasswd FROM user_safe WHERE siteid = '$siteid'";
+  $sql = "SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = '$siteid'";
   $result = $db->query($sql);
   $row = $result->fetch(PDO::FETCH_ASSOC);
   $site = $row["site"];
   $siteuser = $row["siteuser"];
   $sitepasswd = $row["sitepasswd"];
-  log_to_console($site);
-  log_to_console($siteuser);
-  log_to_console($sitepasswd);
+  $siteiv = $row["siteiv"];
   $response->set_data("site", $site);
   $response->set_data("siteuser", $siteuser);
   $response->set_data("sitepasswd", $sitepasswd);
+  $response->set_data("siteiv", $siteiv);
   $response->set_http_code(200);
   $response->success("Site data retrieved.");
   return true;

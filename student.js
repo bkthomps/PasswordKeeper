@@ -205,12 +205,14 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
  */
 function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) {
   const payload = {"siteid": siteid};
-  serverRequest("load", payload).then(function (result) {
+  serverRequest("load", payload).then(async function (result) {
     if (result.response.ok) {
       siteElement.value = result.json.site;
       userElement.value = result.json.siteuser;
-      // TODO: decrypt
-      passElement.value = result.json.sitepasswd;
+      const cypherText = result.json.sitepasswd;
+      const hashedPassword = await hash(masterPassword);
+      const siteiv = result.json.siteiv;
+      passElement.value = await decrypt(cypherText, hashedPassword, siteiv);
     } else {
       showContent("login");
       serverStatus(result);
