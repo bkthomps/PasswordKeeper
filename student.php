@@ -120,6 +120,8 @@
  */
 function preflight(&$request, &$response, &$db)
 {
+  // FIXME: validate that the session is not expired, meaning that if I click the back button,
+  // FIXME: it brings me back to the login page, same if I am inactive for three hours
   $headers = getallheaders();
   $origin = $headers['Origin'];
   if ($origin == null) {
@@ -145,6 +147,7 @@ function signup(&$request, &$response, &$db)
   $password = $request->param("password"); // The requested password from the client
   $email = $request->param("email");    // The requested email address from the client
   $fullname = $request->param("fullname"); // The requested full name from the client
+  // FIXME: password should get salted too
   $hashedPassword = openssl_digest($password, "SHA256");
 
   $sql = "INSERT INTO user(username, passwd, email, fullname, modified) VALUES (:username, :passwd,
@@ -193,6 +196,7 @@ function login(&$request, &$response, &$db)
 {
   $username = $request->param("username"); // The username with which to log in
   $password = $request->param("password"); // The password with which to log in
+  // FIXME: password should get salted too
   $hashedPassword = openssl_digest($password, "SHA256");
 
   $sql = "SELECT fullname, COUNT(*) as count FROM user where username = :username AND passwd = :passwd";
@@ -226,6 +230,7 @@ function login(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
+  // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
   // FIXME: only for this specific user
   $sql = "SELECT site, siteid FROM user_safe";
   $result = $db->query($sql);
@@ -252,6 +257,7 @@ function sites(&$request, &$response, &$db)
  */
 function save(&$request, &$response, &$db)
 {
+  // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
   $site = $request->param("site");
   $siteuser = $request->param("siteuser");
   $sitepasswd = $request->param("sitepasswd");
@@ -288,6 +294,8 @@ function save(&$request, &$response, &$db)
  */
 function load(&$request, &$response, &$db)
 {
+  // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
+  // FIXME: only for this specific user
   $siteid = $request->param("siteid");
   $sql = "SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = '$siteid'";
   $result = $db->query($sql);
