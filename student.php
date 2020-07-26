@@ -120,8 +120,6 @@
  */
 function preflight(&$request, &$response, &$db)
 {
-  // FIXME: validate that the session is not expired, meaning that if I click the back button,
-  // FIXME: it brings me back to the login page, same if I am inactive for three hours
   $headers = getallheaders();
   $origin = $headers['Origin'];
   if ($origin == null) {
@@ -129,10 +127,17 @@ function preflight(&$request, &$response, &$db)
     $response->failure("Origin is null");
     return false;
   }
+  $sql_web = "SELECT sessionid, COUNT(*) as count FROM web_session";
+  $result = $db->query($sql_web);
+  $row = $result->fetch(PDO::FETCH_ASSOC);
+  $sessionId = $row["count"] + 1;
+  $later = date("c", time() + 30);
+  $insert = "INSERT INTO web_session VALUES ('$sessionId', '$later', 'metadata')";
+  $db->exec($insert);
+  $response->set_data("sessionid", $sessionId);
   $response->set_http_code(200);
   $response->success("Request OK");
   log_to_console("OK");
-
   return true;
 }
 
@@ -160,9 +165,10 @@ function signup(&$request, &$response, &$db)
     $hashedPassword = openssl_digest($plainTextPassword, "SHA256");
     $saltedHashedPassword = $salt . $hashedPassword;
     $now = date("c");
+    $challenge = random_bytes(64);
     $sql_user = "INSERT INTO user VALUES ('$username', '$saltedHashedPassword', '$email', '$fullName', 'true', '$now')";
     $db->exec($sql_user);
-    $sql_login = "INSERT INTO user_login VALUES ('$username', '$salt', 'challenge', '$now')";
+    $sql_login = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
     $db->exec($sql_login);
     $response->set_http_code(201);
     $response->success("Account created");
