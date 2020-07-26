@@ -213,7 +213,11 @@ function login(&$request, &$response, &$db)
     return false;
   }
   $fullname = $row['fullname'];
-  log_to_console($fullname);
+  $now = new DateTime();
+  $interval = new DateInterval("PT15M");
+  $expiryTime = $now->add($interval)->format(DateTime::ATOM);
+  $sql = "INSERT INTO user_session VALUES ('$username', '$username', '$expiryTime')";
+  $db->exec($sql);
 
   $response->set_http_code(200); // OK
   $response->set_data("fullname", $fullname); // Return the full name to the client for display
