@@ -102,6 +102,7 @@ function login(userInput, passInput) {
   const username = userInput.value;
   const password = passInput.value;
   masterPassword = password;
+  localStorage.setItem("masterPassword", password);
   credentials(username, password).then(function (idJson) {
     if (idJson !== 0) {
       const payload = {
@@ -197,7 +198,7 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
       siteElement.value = result.json.site;
       userElement.value = result.json.siteuser;
       const cypherText = result.json.sitepasswd;
-      const hashedPassword = await hash(masterPassword);
+      const hashedPassword = await hash(localStorage.getItem("masterPassword"));
       const siteIv = result.json.siteiv;
       passElement.value = await decrypt(cypherText, hashedPassword, siteIv);
     } else {
