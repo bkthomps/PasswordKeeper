@@ -352,7 +352,7 @@ function save(&$request, &$response, &$db)
   $iv = $request->param("iv");
   $userName = $request->token("username_token");
   $now = date("c");
-  $exists = "SELECT site, COUNT(site) AS count FROM user_safe WHERE site = '$site'";
+  $exists = "SELECT site, COUNT(site) AS count FROM user_safe WHERE site = '$site' AND username = '$userName'";
   $resultExists = $db->query($exists);
   $rowExists = $resultExists->fetch(PDO::FETCH_ASSOC);
   if ($rowExists["count"] == 0) {
@@ -363,7 +363,7 @@ function save(&$request, &$response, &$db)
     $sql = "INSERT INTO user_safe VALUES ('$index', '$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
     $db->exec($sql);
   } else {
-    $update = "UPDATE user_safe SET siteuser = '$siteUser', sitepasswd = '$sitePassword', siteiv = '$iv', modified = '$now' WHERE site = '$site'";
+    $update = "UPDATE user_safe SET siteuser = '$siteUser', sitepasswd = '$sitePassword', siteiv = '$iv', modified = '$now' WHERE site = '$site' AND username = '$userName'";
     $db->exec($update);
   }
   $response->set_http_code(200);
