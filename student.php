@@ -135,8 +135,8 @@ function preflight(&$request, &$response, &$db)
   $later = date("c", time() + 30);
   $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', 'metadata')";
   $db->exec($insert);
-  $userName = $request->cookie("username");
-  if ($userName) {
+  $userName = $request->token("username_token");
+  if ($userName && $userName !== "") {
     $sql = "UPDATE user_session SET sessionid = '$webSessionId' WHERE username = '$userName'";
     $db->exec($sql);
   }
@@ -264,7 +264,7 @@ function login(&$request, &$response, &$db)
     $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$username'";
     $db->exec($sqlUpdateExpiry);
     $fullName = $row['fullname'];
-    $response->add_cookie("username", $username, time() + 15 * 60);
+    $response->set_token("username_token", $username);
     $response->set_http_code(200);
     $response->set_data("fullname", $fullName);
     $response->success("Successfully logged in");
@@ -278,7 +278,7 @@ function login(&$request, &$response, &$db)
 
 function isSessionExpired(&$request, &$response, &$db)
 {
-  $userName = $request->cookie("username");
+  $userName = $request->token("username_token");
   $now = date("c");
   $sqlUserSession = "SELECT sessionid, expires FROM user_session WHERE username = '$userName'";
   $userResult = $db->query($sqlUserSession);
@@ -312,7 +312,7 @@ function sites(&$request, &$response, &$db)
     $response->set_data("siteids", array());
     return false;
   }
-  $userName = $request->cookie("username");
+  $userName = $request->token("username_token");
   $sql = "SELECT site, siteid FROM user_safe WHERE username = '$userName'";
   $result = $db->query($sql);
   $rows = $result->fetchall(PDO::FETCH_ASSOC);
@@ -345,7 +345,7 @@ function save(&$request, &$response, &$db)
   $siteUser = $request->param("siteuser");
   $sitePassword = $request->param("sitepassword");
   $iv = $request->param("iv");
-  $userName = $request->cookie("username");
+  $userName = $request->token("username_token");
   $now = date("c");
   $exists = "SELECT site, COUNT(site) AS count FROM user_safe WHERE site = '$site'";
   $resultExists = $db->query($exists);
@@ -399,10 +399,11 @@ function load(&$request, &$response, &$db)
  */
 function logout(&$request, &$response, &$db)
 {
-  $userName = $request->cookie("username");
+  $userName = $request->token("username_token");
   $now = date("c");
   $invalidate = "UPDATE user_session SET expires = '$now' WHERE username = '$userName'";
   $db->exec($invalidate);
+  $response->set_token("username_token", "");
   $response->set_http_code(200);
   $response->success("Successfully logged out");
   return true;
