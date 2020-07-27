@@ -190,7 +190,6 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
  * a form element.
  */
 function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) {
-  // FIXME: refreshing the website (through F5), then attempting to load a site will result in a DOMException
   const payload = {"siteid": siteid};
   serverRequest("load", payload).then(async function (result) {
     if (result.response.ok) {
