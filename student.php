@@ -281,13 +281,14 @@ function isSessionExpired(&$request, &$response, &$db)
   $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
   $sqlUserSession = "SELECT expires FROM user_session WHERE username = '$userName'";
   $userResult = $db->query($sqlUserSession);
-  $loginRow = $userResult->fetch(PDO::FETCH_ASSOC);
-  if ($now > $webRow["expires"] || $now > $loginRow["expires"]) {
+  $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
+  // FIXME: the web row is always one behind
+  if (/* $now > $webRow["expires"] || */ $now > $userRow["expires"]) {
     $response->set_http_code(401);
     $response->failure("Invalid authentication");
-    return false;
+    return true;
   }
-  return true;
+  return false;
 }
 
 /**
@@ -298,6 +299,8 @@ function isSessionExpired(&$request, &$response, &$db)
 function sites(&$request, &$response, &$db)
 {
   if (isSessionExpired($request, $response, $db)) {
+    $response->set_data("sites", array());
+    $response->set_data("siteids", array());
     return false;
   }
   $userName = $request->cookie("username");
@@ -315,7 +318,7 @@ function sites(&$request, &$response, &$db)
   $response->set_data("sites", $all_sites);
   $response->set_data("siteids", $all_siteids);
   $response->set_http_code(200);
-  $response->success("Sites with recorded passwords.");
+  $response->success("Sites with recorded passwords");
   return true;
 }
 
@@ -329,36 +332,20 @@ function save(&$request, &$response, &$db)
   if (isSessionExpired($request, $response, $db)) {
     return false;
   }
-
-
-  // TODO: the rest
   $site = $request->param("site");
-  $siteuser = $request->param("siteuser");
-  $sitepasswd = $request->param("sitepasswd");
-  $hashedPassword = $request->param("hashedPassword");
+  $siteUser = $request->param("siteuser");
+  $sitePassword = $request->param("sitepassword");
   $iv = $request->param("iv");
-
-  // FIXME: cannot get username this way since passwords need not be unique
-  $sql = "SELECT username from user where passwd = '$hashedPassword'";
-  $result = $db->query($sql);
-  $row = $result->fetch(PDO::FETCH_ASSOC);
-  $username = $row['username'];
-  $sql = "SELECT siteid, count(siteid) as count from user_safe order by siteid desc";
-  $result = $db->query($sql);
-  $row = $result->fetch(PDO::FETCH_ASSOC);
-  if ($row['count'] == 0) {
-    $siteid = 0;
-  } else {
-    $siteid = $row['siteid'] + 1;
-  }
+  $userName = $request->cookie("username");
+  $sqlCount = "SELECT siteid, COUNT(siteid) as count FROM user_safe";
+  $resultCount = $db->query($sqlCount);
+  $rowCount = $resultCount->fetch(PDO::FETCH_ASSOC);
+  $index = $rowCount['count'] + 1;
   $now = date("c");
-  $sql = "INSERT INTO user_safe VALUES ($siteid, '$username', '$site', '$siteuser', '$sitepasswd', '$iv', '$now')";
+  $sql = "INSERT INTO user_safe VALUES ('$index', '$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
   $db->exec($sql);
-
-  $response->set_http_code(200); // OK
-  $response->success("Save to safe succeeded.");
-  log_to_console("Successfully saved site data");
-
+  $response->set_http_code(200);
+  $response->success("Save to safe succeeded");
   return true;
 }
 
@@ -372,8 +359,6 @@ function load(&$request, &$response, &$db)
   if (isSessionExpired($request, $response, $db)) {
     return false;
   }
-
-  // TODO: verify
   $siteid = $request->param("siteid");
   $sql = "SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = '$siteid'";
   $result = $db->query($sql);
@@ -397,11 +382,12 @@ function load(&$request, &$response, &$db)
  */
 function logout(&$request, &$response, &$db)
 {
-  // FIXME: set expire to now in user session
+  $userName = $request->cookie("username");
+  $now = date("c");
+  $invalidate = "UPDATE user_session SET expires = '$now' WHERE username = '$userName'";
+  $db->exec($invalidate);
   $response->set_http_code(200);
-  $response->success("Successfully logged out.");
-  log_to_console("Logged out");
-
+  $response->success("Successfully logged out");
   return true;
 }
 
