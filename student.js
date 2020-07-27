@@ -97,11 +97,9 @@ async function credentials(username, password) {
 /**
  * Called when the user submits the log-in form.
  */
-async function login(userInput, passInput) {
+function login(userInput, passInput) {
   const username = userInput.value;
   const password = passInput.value;
-  const hashedPassword = await hash(password);
-  localStorage.setItem("hashedMasterPassword", hashedPassword);
   credentials(username, password).then(function (idJson) {
     if (idJson !== 0) {
       const payload = {
@@ -110,8 +108,10 @@ async function login(userInput, passInput) {
         "websessionid": idJson.websessionid,
         "challenge": idJson.challenge
       };
-      serverRequest("login", payload).then(function (result) {
+      serverRequest("login", payload).then(async function (result) {
         if (result.response.ok) {
+          const hashedPassword = await hash(password);
+          localStorage.setItem("hashedMasterPassword", hashedPassword);
           const userDisplay = document.getElementById("userdisplay");
           userDisplay.innerHTML = result.json.fullname;
           showContent("dashboard");
@@ -213,6 +213,7 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
 function logout() {
   serverRequest("logout", {}).then(function (result) {
     if (result.response.ok) {
+      localStorage.clear();
       showContent("login");
     }
     serverStatus(result);
