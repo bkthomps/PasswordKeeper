@@ -288,15 +288,20 @@ function isSessionExpired(&$request, &$response, &$db)
   $webResult = $db->query($sqlWebSessionId);
   $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
   if ($now > $userRow["expires"]) {
+    $response->set_token("username_token", "");
     $response->set_http_code(401);
     $response->failure("Session expired, please login again");
     return true;
   }
   if ($now > $webRow["expires"]) {
+    $response->set_token("username_token", "");
     $response->set_http_code(401);
     $response->failure("Invalid authentication");
     return true;
   }
+  $later = date("c", time() + 15 * 60);
+  $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$userName'";
+  $db->exec($sqlUpdateExpiry);
   return false;
 }
 
