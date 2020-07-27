@@ -134,7 +134,7 @@ function preflight(&$request, &$response, &$db)
   $later = date("c", time() + 30);
   $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', 'metadata')";
   $db->exec($insert);
-  $response->add_cookie("session", $webSessionId, 30);  // FIXME: cookie does not work
+  $response->add_cookie("session", $webSessionId, time() + 30);
   $response->set_data("websessionid", $webSessionId);
   $response->set_http_code(200);
   $response->success("Request OK");
@@ -259,7 +259,7 @@ function login(&$request, &$response, &$db)
     $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$username'";
     $db->exec($sqlUpdateExpiry);
     $fullName = $row['fullname'];
-    $response->add_cookie("username", $username, 15 * 60);  // FIXME: cookie does not work
+    $response->add_cookie("username", $username, time() + 15 * 60);
     $response->set_http_code(200);
     $response->set_data("fullname", $fullName);
     $response->success("Successfully logged in");
@@ -271,6 +271,25 @@ function login(&$request, &$response, &$db)
   }
 }
 
+function isSessionExpired(&$request, &$response, &$db)
+{
+  $webSessionId = $request->cookie("session");
+  $userName = $request->cookie("username");
+  $now = date("c");
+  $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
+  $webResult = $db->query($sqlWebSessionId);
+  $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
+  $sqlUserSession = "SELECT expires FROM user_session WHERE username = '$userName'";
+  $userResult = $db->query($sqlUserSession);
+  $loginRow = $userResult->fetch(PDO::FETCH_ASSOC);
+  if ($now > $webRow["expires"] || $now > $loginRow["expires"]) {
+    $response->set_http_code(401);
+    $response->failure("Invalid authentication");
+    return false;
+  }
+  return true;
+}
+
 /**
  * Returns the sites for which a password is already stored.
  * If the session is valid, it should return the data.
@@ -278,9 +297,10 @@ function login(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
-  $session = $request->cookie("session");  // FIXME: cookie does not work
-  $userName = $request->cookie("username");  // FIXME: cookie does not work
-  // FIXME: return unauthorized if web session or user session is inactive
+  if (isSessionExpired($request, $response, $db)) {
+    return false;
+  }
+  $userName = $request->cookie("username");
   $sql = "SELECT site, siteid FROM user_safe WHERE username = '$userName'";
   $result = $db->query($sql);
   $rows = $result->fetchall(PDO::FETCH_ASSOC);
@@ -306,7 +326,12 @@ function sites(&$request, &$response, &$db)
  */
 function save(&$request, &$response, &$db)
 {
-  // FIXME: 401 if unauthorized, but need username for that
+  if (isSessionExpired($request, $response, $db)) {
+    return false;
+  }
+
+
+  // TODO: the rest
   $site = $request->param("site");
   $siteuser = $request->param("siteuser");
   $sitepasswd = $request->param("sitepasswd");
@@ -344,7 +369,11 @@ function save(&$request, &$response, &$db)
  */
 function load(&$request, &$response, &$db)
 {
-  // FIXME: 401 if unauthorized, but need username for that
+  if (isSessionExpired($request, $response, $db)) {
+    return false;
+  }
+
+  // TODO: verify
   $siteid = $request->param("siteid");
   $sql = "SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = '$siteid'";
   $result = $db->query($sql);
