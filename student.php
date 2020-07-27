@@ -169,6 +169,9 @@ function signup(&$request, &$response, &$db)
     $db->exec($sqlUser);
     $sqlLogin = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
     $db->exec($sqlLogin);
+    $now = date("c");
+    $sqlUser = "INSERT INTO user_session VALUES ('$username', '$username', '$now')";
+    $db->exec($sqlUser);
     $response->set_http_code(201);
     $response->success("Account created");
     return true;
@@ -219,41 +222,51 @@ function identify(&$request, &$response, &$db)
  */
 function login(&$request, &$response, &$db)
 {
-  $username = $request->param("username");
-  $plainTextPassword = $request->param("password");
-  $webSessionId = $request->param("websessionid");
-  $challenge = $request->param("challenge");
-  $now = date("c");
-  $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
-  $webResult = $db->query($sqlWebSessionId);
-  $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
-  $sqlUserLogin = "SELECT salt, challenge, expires FROM user_login WHERE username = '$username'";
-  $loginResult = $db->query($sqlUserLogin);
-  $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
-  if ($now > $webRow["expires"] || $now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
-    $response->set_http_code(401);
-    $response->failure("Invalid authentication");
+  try {
+    $username = $request->param("username");
+    $plainTextPassword = $request->param("password");
+    $webSessionId = $request->param("websessionid");
+    $challenge = $request->param("challenge");
+    $now = date("c");
+    $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
+    $webResult = $db->query($sqlWebSessionId);
+    $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
+    $sqlUserLogin = "SELECT salt, challenge, expires FROM user_login WHERE username = '$username'";
+    $loginResult = $db->query($sqlUserLogin);
+    $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
+    if ($now > $webRow["expires"] || $now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
+      $response->set_http_code(401);
+      $response->failure("Invalid authentication");
+      return false;
+    }
+    $challenge = base64_encode(random_bytes(64));
+    $now = date("c");
+    $sqlResetLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$now' WHERE username = '$username'";
+    $db->exec($sqlResetLogin);
+    $salt = $loginRow["salt"];
+    $saltedPlainText = $salt . $plainTextPassword;
+    $hashedPassword = openssl_digest($saltedPlainText, "SHA256");
+    $sql = "SELECT fullname, COUNT(*) as count FROM user WHERE username = '$username' AND passwd = '$hashedPassword'";
+    $result = $db->query($sql);
+    $row = $result->fetch(PDO::FETCH_ASSOC);
+    if ($row['count'] == 0) {
+      $response->set_http_code(401);
+      $response->failure("Username or password incorrect");
+      return false;
+    }
+    $later = date("c", time() + 15 * 60);
+    $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$username'";
+    $db->exec($sqlUpdateExpiry);
+    $fullName = $row['fullname'];
+    $response->set_http_code(200);
+    $response->set_data("fullname", $fullName);
+    $response->success("Successfully logged in");
+    return true;
+  } catch (Exception $e) {
+    $response->set_http_code(500);
+    $response->failure("Internal server error");
     return false;
   }
-  $salt = $loginRow["salt"];
-  $saltedPlainText = $salt . $plainTextPassword;
-  $hashedPassword = openssl_digest($saltedPlainText, "SHA256");
-  $sql = "SELECT fullname, COUNT(*) as count FROM user WHERE username = '$username' AND passwd = '$hashedPassword'";
-  $result = $db->query($sql);
-  $row = $result->fetch(PDO::FETCH_ASSOC);
-  if ($row['count'] == 0) {
-    $response->set_http_code(401);
-    $response->failure("Username or password incorrect");
-    return false;
-  }
-  $fullName = $row['fullname'];
-  $later = date("c", time() + 15 * 60);
-  $sqlUpdateExpiry = "INSERT INTO user_session VALUES ('$username', '$username', '$later')";
-  $db->exec($sqlUpdateExpiry);
-  $response->set_http_code(200);
-  $response->set_data("fullname", $fullName);
-  $response->success("Successfully logged in");
-  return true;
 }
 
 /**
