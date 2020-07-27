@@ -161,6 +161,7 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
  * Called when the add password form is submitted.
  */
 async function save(siteIdInput, siteInput, userInput, passInput) {
+  // FIXME: overwriting does not work
   const siteId = siteIdInput.value;
   const site = siteInput.value;
   const siteUser = userInput.value;
