@@ -287,7 +287,12 @@ function isSessionExpired(&$request, &$response, &$db)
   $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
   $webResult = $db->query($sqlWebSessionId);
   $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
-  if ($now > $webRow["expires"] || $now > $userRow["expires"]) {
+  if ($now > $userRow["expires"]) {
+    $response->set_http_code(401);
+    $response->failure("Session expired, please login again");
+    return true;
+  }
+  if ($now > $webRow["expires"]) {
     $response->set_http_code(401);
     $response->failure("Invalid authentication");
     return true;
