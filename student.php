@@ -120,6 +120,7 @@
  */
 function preflight(&$request, &$response, &$db)
 {
+  // TODO: add some more checking here
   $headers = getallheaders();
   $origin = $headers['Origin'];
   if ($origin == null) {
@@ -340,13 +341,21 @@ function save(&$request, &$response, &$db)
   $sitePassword = $request->param("sitepassword");
   $iv = $request->param("iv");
   $userName = $request->cookie("username");
-  $sqlCount = "SELECT siteid, COUNT(siteid) as count FROM user_safe";
-  $resultCount = $db->query($sqlCount);
-  $rowCount = $resultCount->fetch(PDO::FETCH_ASSOC);
-  $index = $rowCount['count'] + 1;
   $now = date("c");
-  $sql = "INSERT INTO user_safe VALUES ('$index', '$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
-  $db->exec($sql);
+  $exists = "SELECT site, COUNT(site) AS count FROM user_safe WHERE site = '$site'";
+  $resultExists = $db->query($exists);
+  $rowExists = $resultExists->fetch(PDO::FETCH_ASSOC);
+  if ($rowExists["count"] == 0) {
+    $sqlCount = "SELECT siteid, COUNT(siteid) AS count FROM user_safe";
+    $resultCount = $db->query($sqlCount);
+    $rowCount = $resultCount->fetch(PDO::FETCH_ASSOC);
+    $index = $rowCount['count'] + 1;
+    $sql = "INSERT INTO user_safe VALUES ('$index', '$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
+    $db->exec($sql);
+  } else {
+    $update = "UPDATE user_safe SET siteuser = '$siteUser', sitepasswd = '$sitePassword', siteiv = '$iv', modified = '$now' WHERE site = '$site'";
+    $db->exec($update);
+  }
   $response->set_http_code(200);
   $response->success("Save to safe succeeded");
   return true;

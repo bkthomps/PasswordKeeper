@@ -161,8 +161,7 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
  * Called when the add password form is submitted.
  */
 async function save(siteIdInput, siteInput, userInput, passInput) {
-  // FIXME: overwriting does not work
-  const siteId = siteIdInput.value;
+  // FIXME: if you modify the site parameter, it will create a new entry instead of just modifying it
   const site = siteInput.value;
   const siteUser = userInput.value;
   const sitePassword = passInput.value;
@@ -170,7 +169,6 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
   const siteIv = randomBytes(16);
   const encrypted = await encrypt(sitePassword, hashedPassword, siteIv);
   const payload = {
-    "siteid": siteId,
     "site": site,
     "siteuser": siteUser,
     "sitepassword": encrypted,
