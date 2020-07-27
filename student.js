@@ -79,7 +79,6 @@
  *
  *****************************************************************************/
 
-let masterPassword;
 
 /**
  * This is an async function that should return the username and password to send
@@ -98,11 +97,11 @@ async function credentials(username, password) {
 /**
  * Called when the user submits the log-in form.
  */
-function login(userInput, passInput) {
+async function login(userInput, passInput) {
   const username = userInput.value;
   const password = passInput.value;
-  masterPassword = password;
-  localStorage.setItem("masterPassword", password);
+  const hashedPassword = await hash(password);
+  localStorage.setItem("hashedMasterPassword", hashedPassword);
   credentials(username, password).then(function (idJson) {
     if (idJson !== 0) {
       const payload = {
@@ -166,7 +165,7 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
   const site = siteInput.value;
   const siteUser = userInput.value;
   const sitePassword = passInput.value;
-  const hashedPassword = await hash(masterPassword)
+  const hashedPassword = localStorage.getItem("hashedMasterPassword");
   const siteIv = randomBytes(16);
   const encrypted = await encrypt(sitePassword, hashedPassword, siteIv);
   const payload = {
@@ -198,7 +197,7 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
       siteElement.value = result.json.site;
       userElement.value = result.json.siteuser;
       const cypherText = result.json.sitepasswd;
-      const hashedPassword = await hash(localStorage.getItem("masterPassword"));
+      const hashedPassword = localStorage.getItem("hashedMasterPassword");
       const siteIv = result.json.siteiv;
       passElement.value = await decrypt(cypherText, hashedPassword, siteIv);
     } else {
