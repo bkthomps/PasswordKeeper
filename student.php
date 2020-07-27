@@ -276,9 +276,7 @@ function login(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
-  // TODO: verify
-  // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
-  // FIXME: only for this specific user
+  // FIXME this should check for this user only, and do 401 for invalid, but somehow need username
   $sql = "SELECT site, siteid FROM user_safe";
   $result = $db->query($sql);
   $rows = $result->fetchall(PDO::FETCH_ASSOC);
@@ -304,14 +302,14 @@ function sites(&$request, &$response, &$db)
  */
 function save(&$request, &$response, &$db)
 {
-  // TODO: verify
-  // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
+  // FIXME: 401 if unauthorized, but need username for that
   $site = $request->param("site");
   $siteuser = $request->param("siteuser");
   $sitepasswd = $request->param("sitepasswd");
   $hashedPassword = $request->param("hashedPassword");
   $iv = $request->param("iv");
 
+  // FIXME: cannot get username this way since passwords need not be unique
   $sql = "SELECT username from user where passwd = '$hashedPassword'";
   $result = $db->query($sql);
   $row = $result->fetch(PDO::FETCH_ASSOC);
@@ -342,9 +340,7 @@ function save(&$request, &$response, &$db)
  */
 function load(&$request, &$response, &$db)
 {
-  // TODO: verify
-  // FIXME: if a session is invalid here, does it fail in preflight or should we check here too?
-  // FIXME: only for this specific user
+  // FIXME: 401 if unauthorized, but need username for that
   $siteid = $request->param("siteid");
   $sql = "SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = '$siteid'";
   $result = $db->query($sql);
@@ -368,7 +364,7 @@ function load(&$request, &$response, &$db)
  */
 function logout(&$request, &$response, &$db)
 {
-  // TODO: verify
+  // FIXME: set expire to now
   $response->set_http_code(200);
   $response->success("Successfully logged out.");
   log_to_console("Logged out");

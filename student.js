@@ -112,9 +112,8 @@ function login(userInput, passInput) {
       };
       serverRequest("login", payload).then(function (result) {
         if (result.response.ok) {
-          // TODO: what does this do??
-          const userdisplay = document.getElementById("userdisplay");
-          userdisplay.innerHTML = result.json.fullname;
+          const userDisplay = document.getElementById("userdisplay");
+          userDisplay.innerHTML = result.json.fullname;
           showContent("dashboard");
         } else {
           serverStatus(result);
