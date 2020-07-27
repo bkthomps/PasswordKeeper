@@ -134,6 +134,7 @@ function preflight(&$request, &$response, &$db)
   $later = date("c", time() + 30);
   $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', 'metadata')";
   $db->exec($insert);
+  $response->add_cookie("session", $webSessionId, 30);  // FIXME: cookie does not work
   $response->set_data("websessionid", $webSessionId);
   $response->set_http_code(200);
   $response->success("Request OK");
@@ -258,6 +259,7 @@ function login(&$request, &$response, &$db)
     $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$username'";
     $db->exec($sqlUpdateExpiry);
     $fullName = $row['fullname'];
+    $response->add_cookie("username", $username, 15 * 60);  // FIXME: cookie does not work
     $response->set_http_code(200);
     $response->set_data("fullname", $fullName);
     $response->success("Successfully logged in");
@@ -276,8 +278,10 @@ function login(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
-  // FIXME this should check for this user only, and do 401 for invalid, but somehow need username
-  $sql = "SELECT site, siteid FROM user_safe";
+  $session = $request->cookie("session");  // FIXME: cookie does not work
+  $userName = $request->cookie("username");  // FIXME: cookie does not work
+  // FIXME: return unauthorized if web session or user session is inactive
+  $sql = "SELECT site, siteid FROM user_safe WHERE username = '$userName'";
   $result = $db->query($sql);
   $rows = $result->fetchall(PDO::FETCH_ASSOC);
   $all_sites = array();
@@ -364,7 +368,7 @@ function load(&$request, &$response, &$db)
  */
 function logout(&$request, &$response, &$db)
 {
-  // FIXME: set expire to now
+  // FIXME: set expire to now in user session
   $response->set_http_code(200);
   $response->success("Successfully logged out.");
   log_to_console("Logged out");
