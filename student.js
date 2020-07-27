@@ -86,7 +86,6 @@ let masterPassword;
  * to the server for login credentials.
  */
 async function credentials(username, password) {
-  // TODO: verify
   const payload = {"username": username};
   const idResult = await serverRequest("identify", payload);
   if (!idResult.response.ok) {
@@ -100,21 +99,28 @@ async function credentials(username, password) {
  * Called when the user submits the log-in form.
  */
 function login(userInput, passInput) {
-  // TODO: verify
   const username = userInput.value;
   const password = passInput.value;
   masterPassword = password;
-  const payload = {"username": username, "password": password};
   credentials(username, password).then(function (idJson) {
-    serverRequest("login", payload).then(function (result) {
-      if (result.response.ok) {
-        const userdisplay = document.getElementById("userdisplay");
-        userdisplay.innerHTML = result.json.fullname;
-        showContent("dashboard");
-      } else {
-        serverStatus(result);
-      }
-    });
+    if (idJson !== 0) {
+      const payload = {
+        "username": username,
+        "password": password,
+        "websessionid": idJson.websessionid,
+        "challenge": idJson.challenge
+      };
+      serverRequest("login", payload).then(function (result) {
+        if (result.response.ok) {
+          // TODO: what does this do??
+          const userdisplay = document.getElementById("userdisplay");
+          userdisplay.innerHTML = result.json.fullname;
+          showContent("dashboard");
+        } else {
+          serverStatus(result);
+        }
+      });
+    }
   });
 }
 

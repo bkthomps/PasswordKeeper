@@ -127,17 +127,16 @@ function preflight(&$request, &$response, &$db)
     $response->failure("Origin is null");
     return false;
   }
-  $sql_web = "SELECT sessionid, COUNT(*) as count FROM web_session";
-  $result = $db->query($sql_web);
+  $sqlWeb = "SELECT sessionid, COUNT(*) as count FROM web_session";
+  $result = $db->query($sqlWeb);
   $row = $result->fetch(PDO::FETCH_ASSOC);
-  $sessionId = $row["count"] + 1;
+  $webSessionId = $row["count"] + 1;
   $later = date("c", time() + 30);
-  $insert = "INSERT INTO web_session VALUES ('$sessionId', '$later', 'metadata')";
+  $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', 'metadata')";
   $db->exec($insert);
-  $response->set_data("sessionid", $sessionId);
+  $response->set_data("websessionid", $webSessionId);
   $response->set_http_code(200);
   $response->success("Request OK");
-  log_to_console("OK");
   return true;
 }
 
@@ -153,23 +152,23 @@ function signup(&$request, &$response, &$db)
     $plainTextPassword = $request->param("password");
     $email = $request->param("email");
     $fullName = $request->param("fullname");
-    $sql_unique = "SELECT username, email, COUNT(*) as count FROM user WHERE username = '$username' OR email = '$email'";
-    $result = $db->query($sql_unique);
+    $sqlUnique = "SELECT username, email, COUNT(*) as count FROM user WHERE username = '$username' OR email = '$email'";
+    $result = $db->query($sqlUnique);
     $row = $result->fetch(PDO::FETCH_ASSOC);
     if ($row["count"] != 0) {
       $response->set_http_code(400);
       $response->failure("Either username or email has already been used");
       return false;
     }
-    $salt = random_bytes(32);
-    $hashedPassword = openssl_digest($plainTextPassword, "SHA256");
-    $saltedHashedPassword = $salt . $hashedPassword;
+    $salt = base64_encode(random_bytes(32));
+    $saltedPlainText = $salt . $plainTextPassword;
+    $hashedPassword = openssl_digest($saltedPlainText, "SHA256");
     $now = date("c");
-    $challenge = random_bytes(64);
-    $sql_user = "INSERT INTO user VALUES ('$username', '$saltedHashedPassword', '$email', '$fullName', 'true', '$now')";
-    $db->exec($sql_user);
-    $sql_login = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
-    $db->exec($sql_login);
+    $challenge = base64_encode(random_bytes(64));
+    $sqlUser = "INSERT INTO user VALUES ('$username', '$hashedPassword', '$email', '$fullName', 'true', '$now')";
+    $db->exec($sqlUser);
+    $sqlLogin = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
+    $db->exec($sqlLogin);
     $response->set_http_code(201);
     $response->success("Account created");
     return true;
@@ -188,14 +187,29 @@ function signup(&$request, &$response, &$db)
  */
 function identify(&$request, &$response, &$db)
 {
-  // TODO: verify
-  $username = $request->param("username"); // The username
-
-  $response->set_http_code(200);
-  $response->success("Successfully identified user.");
-  log_to_console("Success.");
-
-  return true;
+  try {
+    $username = $request->param("username");
+    $sqlCount = "SELECT username, COUNT(*) as count FROM user_login WHERE username = '$username'";
+    $result = $db->query($sqlCount);
+    $row = $result->fetch(PDO::FETCH_ASSOC);
+    if ($row["count"] == 0) {
+      $response->set_http_code(400);
+      $response->failure("Username or password incorrect");
+      return false;
+    }
+    $challenge = base64_encode(random_bytes(64));
+    $later = date("c", time() + 30);
+    $sqlLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$later' WHERE username = '$username'";
+    $db->exec($sqlLogin);
+    $response->set_data("challenge", $challenge);
+    $response->set_http_code(200);
+    $response->success("Successfully identified user");
+    return true;
+  } catch (Exception $e) {
+    $response->set_http_code(500);
+    $response->failure("Internal server error");
+    return false;
+  }
 }
 
 /**
@@ -205,39 +219,42 @@ function identify(&$request, &$response, &$db)
  */
 function login(&$request, &$response, &$db)
 {
-  // TODO: verify
-  $username = $request->param("username"); // The username with which to log in
-  $password = $request->param("password"); // The password with which to log in
-  // FIXME: password should get salted too
-  $hashedPassword = openssl_digest($password, "SHA256");
-
-  $sql = "SELECT fullname, COUNT(*) as count FROM user where username = :username AND passwd = :passwd";
-  $stmt = $db->prepare($sql);
-  $stmt->bindValue(':username', $username);
-  $stmt->bindValue(':passwd', $hashedPassword);
-  $stmt->execute();
-  $row = $stmt->fetch(PDO::FETCH_ASSOC);
-  log_to_console($row['count']);
+  $username = $request->param("username");
+  $plainTextPassword = $request->param("password");
+  $webSessionId = $request->param("websessionid");
+  $challenge = $request->param("challenge");
+  $now = date("c");
+  $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
+  $webResult = $db->query($sqlWebSessionId);
+  $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
+  $sqlUserLogin = "SELECT salt, challenge, expires FROM user_login WHERE username = '$username'";
+  $loginResult = $db->query($sqlUserLogin);
+  $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
+  if ($now > $webRow["expires"] || $now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
+    $response->set_http_code(401);
+    $response->failure("Invalid authentication");
+    return false;
+  }
+  $salt = $loginRow["salt"];
+  $saltedPlainText = $salt . $plainTextPassword;
+  $hashedPassword = openssl_digest($saltedPlainText, "SHA256");
+  $sql = "SELECT fullname, COUNT(*) as count FROM user WHERE username = '$username' AND passwd = '$hashedPassword'";
+  $result = $db->query($sql);
+  $row = $result->fetch(PDO::FETCH_ASSOC);
   if ($row['count'] == 0) {
-    log_to_console("Username or password incorrect");
-    $response->set_http_code(401); //Unauthorized
+    $response->set_http_code(401);
     $response->failure("Username or password incorrect");
     return false;
   }
-  $fullname = $row['fullname'];
-  $now = new DateTime();
-  $interval = new DateInterval("PT15M");
-  $expiryTime = $now->add($interval)->format(DateTime::ATOM);
-  $sql = "INSERT INTO user_session VALUES ('$username', '$username', '$expiryTime')";
-  $db->exec($sql);
-
-  $response->set_http_code(200); // OK
-  $response->set_data("fullname", $fullname); // Return the full name to the client for display
-  $response->success("Successfully logged in.");
-  log_to_console("Session created.");
+  $fullName = $row['fullname'];
+  $later = date("c", time() + 15 * 60);
+  $sqlUpdateExpiry = "INSERT INTO user_session VALUES ('$username', '$username', '$later')";
+  $db->exec($sqlUpdateExpiry);
+  $response->set_http_code(200);
+  $response->set_data("fullname", $fullName);
+  $response->success("Successfully logged in");
   return true;
 }
-
 
 /**
  * Returns the sites for which a password is already stored.
