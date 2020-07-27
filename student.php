@@ -134,7 +134,11 @@ function preflight(&$request, &$response, &$db)
   $later = date("c", time() + 30);
   $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', 'metadata')";
   $db->exec($insert);
-  $response->add_cookie("session", $webSessionId, time() + 30);
+  $userName = $request->cookie("username");
+  if ($userName) {
+    $sql = "UPDATE user_session SET sessionid = '$webSessionId' WHERE username = '$userName'";
+    $db->exec($sql);
+  }
   $response->set_data("websessionid", $webSessionId);
   $response->set_http_code(200);
   $response->success("Request OK");
@@ -273,17 +277,16 @@ function login(&$request, &$response, &$db)
 
 function isSessionExpired(&$request, &$response, &$db)
 {
-  $webSessionId = $request->cookie("session");
   $userName = $request->cookie("username");
   $now = date("c");
+  $sqlUserSession = "SELECT sessionid, expires FROM user_session WHERE username = '$userName'";
+  $userResult = $db->query($sqlUserSession);
+  $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
+  $webSessionId = $userRow["sessionid"];
   $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
   $webResult = $db->query($sqlWebSessionId);
   $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
-  $sqlUserSession = "SELECT expires FROM user_session WHERE username = '$userName'";
-  $userResult = $db->query($sqlUserSession);
-  $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
-  // FIXME: the web row is always one behind
-  if (/* $now > $webRow["expires"] || */ $now > $userRow["expires"]) {
+  if ($now > $webRow["expires"] || $now > $userRow["expires"]) {
     $response->set_http_code(401);
     $response->failure("Invalid authentication");
     return true;
