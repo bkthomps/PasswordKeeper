@@ -135,7 +135,7 @@ function preflight(&$request, &$response, &$db)
   $operation = $request->param("operation");
   $webSessionId = $request->token("websessionid");
   if (!$webSessionId) {
-    // If there is a web session set, and it's not a signup or login, it is unauthorized
+    // If there is no web session set, and it's not a signup or login, it is unauthorized
     if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $response->set_token("web_session_id", null);
       $response->delete_cookie("username");
