@@ -132,29 +132,15 @@ function preflight(&$request, &$response, &$db)
     $response->failure("Missing origin");
     return false;
   }
-  $operation = $request->param("operation");
-  $webSessionId = $request->token("websessionid");
-  if (!$webSessionId) {
-    // If there is no web session set, and it's not a signup or login, it is unauthorized
-    if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
-      $response->set_token("web_session_id", null);
-      $response->delete_cookie("username");
-      $response->failure("Unauthorized");
-      $response->set_http_code(401);
-      return false;
-    }
-    // Create a new web session
-    $sqlWeb = "SELECT sessionid, COUNT(*) as count FROM web_session";
-    $result = $db->query($sqlWeb);
-    $row = $result->fetch(PDO::FETCH_ASSOC);
-    $webSessionId = $row["count"] + 1;
-    $later = date("c", time() + 12 * 60 * 60);
-    $ip = $request->client_ip();
-    $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', '$ip')";
-    $db->exec($insert);
-    $response->set_token("websessionid", $webSessionId);
-    return true;
+  if ($request->token("websessionid")) {
+    return preflight_valid_web_session($request, $response, $db);
   }
+  return preflight_invalid_web_session($request, $response, $db);
+}
+
+function preflight_valid_web_session(&$request, &$response, &$db)
+{
+  $webSessionId = $request->token("websessionid");
   // Get current web session expiry date
   $now = date("c");
   $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
@@ -173,6 +159,7 @@ function preflight(&$request, &$response, &$db)
   $sqlUpdateMetadata = "UPDATE web_session SET metadata = '$client_ip' WHERE sessionid = '$webSessionId'";
   $db->exec($sqlUpdateMetadata);
   // Check the user session expiry, unless it's a login or signup
+  $operation = $request->param("operation");
   if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
     $userName = $request->cookie("username");
     // This should never happen
@@ -203,6 +190,32 @@ function preflight(&$request, &$response, &$db)
     $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$userName'";
     $db->exec($sqlUpdateExpiry);
   }
+  $response->set_http_code(200);
+  $response->success("Request OK");
+  return true;
+}
+
+function preflight_invalid_web_session(&$request, &$response, &$db)
+{
+  $operation = $request->param("operation");
+  // If there is no web session set, and it's not a signup or login, it is unauthorized
+  if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    $response->set_token("web_session_id", null);
+    $response->delete_cookie("username");
+    $response->failure("Unauthorized");
+    $response->set_http_code(401);
+    return false;
+  }
+  // Create a new web session
+  $sqlWeb = "SELECT sessionid, COUNT(*) as count FROM web_session";
+  $result = $db->query($sqlWeb);
+  $row = $result->fetch(PDO::FETCH_ASSOC);
+  $webSessionId = $row["count"] + 1;
+  $later = date("c", time() + 12 * 60 * 60);
+  $ip = $request->client_ip();
+  $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', '$ip')";
+  $db->exec($insert);
+  $response->set_token("websessionid", $webSessionId);
   $response->set_http_code(200);
   $response->success("Request OK");
   return true;
