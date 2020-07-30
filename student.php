@@ -360,7 +360,6 @@ function save(&$request, &$response, &$db)
     $sql = "INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) "
       . "VALUES ('$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
   } else {
-    log_to_console($siteid);
     $sql = "UPDATE user_safe SET site = '$site', siteuser = '$siteUser', sitepasswd = '$sitePassword', "
       . "siteiv = '$iv', modified = '$now' WHERE siteid = '$siteid'";
   }
