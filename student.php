@@ -120,26 +120,89 @@
  */
 function preflight(&$request, &$response, &$db)
 {
-  $headers = getallheaders();
-  $origin = $headers['Origin'];
-  if ($origin == null) {
+  // CORS (Cross-Origin Resource Sharing) is always disallowed
+  if ($request->header("Sec-Fetch-Site") !== "same-origin") {
     $response->set_http_code(403);
-    $response->failure("Origin is null");
+    $response->failure("CORS forbidden");
     return false;
   }
-  $sqlWeb = "SELECT sessionid, COUNT(*) as count FROM web_session";
-  $result = $db->query($sqlWeb);
-  $row = $result->fetch(PDO::FETCH_ASSOC);
-  $webSessionId = $row["count"] + 1;
-  $later = date("c", time() + 30);
-  $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', 'metadata')";
-  $db->exec($insert);
-  $userName = $request->token("username_token");
-  if ($userName && $userName !== "") {
-    $sql = "UPDATE user_session SET sessionid = '$webSessionId' WHERE username = '$userName'";
-    $db->exec($sql);
+  // Never allow a missing origin
+  if (!$request->header("Origin")) {
+    $response->set_http_code(403);
+    $response->failure("Missing origin");
+    return false;
   }
-  $response->set_data("websessionid", $webSessionId);
+  $operation = $request->param("operation");
+  $webSessionId = $request->token("websessionid");
+  if (!$webSessionId) {
+    // If there is a web session set, and it's not a signup or login, it is unauthorized
+    if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+      $response->set_token("web_session_id", null);
+      $response->delete_cookie("username");
+      $response->failure("Unauthorized");
+      $response->set_http_code(401);
+      return false;
+    }
+    // Create a new web session
+    $sqlWeb = "SELECT sessionid, COUNT(*) as count FROM web_session";
+    $result = $db->query($sqlWeb);
+    $row = $result->fetch(PDO::FETCH_ASSOC);
+    $webSessionId = $row["count"] + 1;
+    $later = date("c", time() + 12 * 60 * 60);
+    $ip = $request->client_ip();
+    $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', '$ip')";
+    $db->exec($insert);
+    $response->set_token("websessionid", $webSessionId);
+    return true;
+  }
+  // Get current web session expiry date
+  $now = date("c");
+  $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
+  $webResult = $db->query($sqlWebSessionId);
+  $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
+  // If the web session is expired, the user must login again
+  if ($now > $webRow["expires"]) {
+    $response->set_token("web_session_id", null);
+    $response->delete_cookie("username");
+    $response->set_http_code(401);
+    $response->failure("Session expired, please login again");
+    return false;
+  }
+  // Update the ip in the web session
+  $client_ip = $request->client_ip();
+  $sqlUpdateMetadata = "UPDATE web_session SET metadata = '$client_ip' WHERE sessionid = '$webSessionId'";
+  $db->exec($sqlUpdateMetadata);
+  // Check the user session expiry, unless it's a login or signup
+  if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    $userName = $request->cookie("username");
+    // This should never happen
+    if (!$userName) {
+      $response->set_http_code(500);
+      $response->failure("Internal error");
+      return false;
+    }
+    $now = date("c");
+    $sqlUserSession = "SELECT expires, COUNT(expires) AS count FROM user_session WHERE username = '$userName'";
+    $userResult = $db->query($sqlUserSession);
+    $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
+    // This should never happen
+    if ($userRow["count"] == 0) {
+      $response->set_http_code(500);
+      $response->failure("Internal error");
+      return false;
+    }
+    // Check if user session is expired
+    if ($now > $userRow["expires"]) {
+      $response->set_token("web_session_id", null);
+      $response->delete_cookie("username");
+      $response->set_http_code(401);
+      $response->failure("Session expired, please login again");
+      return true;
+    }
+    $later = date("c", time() + 15 * 60);
+    $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$userName'";
+    $db->exec($sqlUpdateExpiry);
+  }
   $response->set_http_code(200);
   $response->success("Request OK");
   return true;
@@ -206,7 +269,7 @@ function identify(&$request, &$response, &$db)
       return false;
     }
     $challenge = base64_encode(random_bytes(64));
-    $later = date("c", time() + 30);
+    $later = date("c", time() + 12 * 60 * 60);
     $sqlLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$later' WHERE username = '$username'";
     $db->exec($sqlLogin);
     $response->set_data("challenge", $challenge);
@@ -239,7 +302,9 @@ function login(&$request, &$response, &$db)
     $sqlUserLogin = "SELECT salt, challenge, expires FROM user_login WHERE username = '$username'";
     $loginResult = $db->query($sqlUserLogin);
     $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
-    if ($now > $webRow["expires"] || $now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
+    if ($now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
+      $response->set_token("web_session_id", null);
+      $response->delete_cookie("username");
       $response->set_http_code(401);
       $response->failure("Invalid authentication");
       return false;
@@ -263,7 +328,7 @@ function login(&$request, &$response, &$db)
     $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$username'";
     $db->exec($sqlUpdateExpiry);
     $fullName = $row['fullname'];
-    $response->set_token("username_token", $username);
+    $response->add_cookie("username", $username, time() + 15 * 60);
     $response->set_http_code(200);
     $response->set_data("fullname", $fullName);
     $response->success("Successfully logged in");
@@ -275,35 +340,6 @@ function login(&$request, &$response, &$db)
   }
 }
 
-function isSessionExpired(&$request, &$response, &$db)
-{
-  $userName = $request->token("username_token");
-  $now = date("c");
-  $sqlUserSession = "SELECT sessionid, expires FROM user_session WHERE username = '$userName'";
-  $userResult = $db->query($sqlUserSession);
-  $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
-  $webSessionId = $userRow["sessionid"];
-  $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
-  $webResult = $db->query($sqlWebSessionId);
-  $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
-  if ($now > $userRow["expires"]) {
-    $response->set_token("username_token", "");
-    $response->set_http_code(401);
-    $response->failure("Session expired, please login again");
-    return true;
-  }
-  if ($now > $webRow["expires"]) {
-    $response->set_token("username_token", "");
-    $response->set_http_code(401);
-    $response->failure("Invalid authentication");
-    return true;
-  }
-  $later = date("c", time() + 15 * 60);
-  $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE username = '$userName'";
-  $db->exec($sqlUpdateExpiry);
-  return false;
-}
-
 /**
  * Returns the sites for which a password is already stored.
  * If the session is valid, it should return the data.
@@ -311,12 +347,7 @@ function isSessionExpired(&$request, &$response, &$db)
  */
 function sites(&$request, &$response, &$db)
 {
-  if (isSessionExpired($request, $response, $db)) {
-    $response->set_data("sites", array());
-    $response->set_data("siteids", array());
-    return false;
-  }
-  $userName = $request->token("username_token");
+  $userName = $request->cookie("username");
   $sql = "SELECT site, siteid FROM user_safe WHERE username = '$userName'";
   $result = $db->query($sql);
   $rows = $result->fetchall(PDO::FETCH_ASSOC);
@@ -342,16 +373,12 @@ function sites(&$request, &$response, &$db)
  */
 function save(&$request, &$response, &$db)
 {
-  if (isSessionExpired($request, $response, $db)) {
-    return false;
-  }
   $siteid = $request->param("siteid");
-  log_to_console($siteid);
   $site = $request->param("site");
   $siteUser = $request->param("siteuser");
   $sitePassword = $request->param("sitepassword");
   $iv = $request->param("iv");
-  $userName = $request->token("username_token");
+  $userName = $request->cookie("username");
   $now = date("c");
   $exists = "SELECT siteid, COUNT(siteid) AS count FROM user_safe WHERE siteid = '$siteid'";
   $resultExists = $db->query($exists);
@@ -376,9 +403,6 @@ function save(&$request, &$response, &$db)
  */
 function load(&$request, &$response, &$db)
 {
-  if (isSessionExpired($request, $response, $db)) {
-    return false;
-  }
   $siteid = $request->param("siteid");
   $sql = "SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = '$siteid'";
   $result = $db->query($sql);
@@ -402,11 +426,12 @@ function load(&$request, &$response, &$db)
  */
 function logout(&$request, &$response, &$db)
 {
-  $userName = $request->token("username_token");
+  $userName = $request->cookie("username");
   $now = date("c");
   $invalidate = "UPDATE user_session SET expires = '$now' WHERE username = '$userName'";
   $db->exec($invalidate);
-  $response->set_token("username_token", "");
+  $response->set_token("web_session_id", null);
+  $response->delete_cookie("username");
   $response->set_http_code(200);
   $response->success("Successfully logged out");
   return true;

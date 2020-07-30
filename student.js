@@ -85,7 +85,7 @@
  * to the server for login credentials.
  */
 async function credentials(username, password) {
-  const payload = {"username": username};
+  const payload = {"operation": "identify", "username": username};
   const idResult = await serverRequest("identify", payload);
   if (!idResult.response.ok) {
     serverStatus(idResult);
@@ -103,6 +103,7 @@ function login(userInput, passInput) {
   credentials(username, password).then(function (idJson) {
     if (idJson !== 0) {
       const payload = {
+        "operation": "login",
         "username": username,
         "password": password,
         "websessionid": idJson.websessionid,
@@ -148,7 +149,13 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
     status("Limit field length to 200 characters");
     return;
   }
-  const payload = {"username": username, "password": password, "email": email, "fullname": fullName};
+  const payload = {
+    "operation": "signup",
+    "username": username,
+    "password": password,
+    "email": email,
+    "fullname": fullName
+  };
   serverRequest("signup", payload).then(function (result) {
     if (result.response.ok) {
       showContent("login");
@@ -169,6 +176,7 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
   const siteIv = randomBytes(16);
   const encrypted = await encrypt(sitePassword, hashedPassword, siteIv);
   const payload = {
+    "operation": "save",
     "siteid": siteId,
     "site": site,
     "siteuser": siteUser,
@@ -194,7 +202,7 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
   if (siteIdElement) {
     siteIdElement.value = siteid;
   }
-  const payload = {"siteid": siteid};
+  const payload = {"operation": "load", "siteid": siteid};
   serverRequest("load", payload).then(async function (result) {
     if (result.response.ok) {
       siteElement.value = result.json.site;
@@ -214,7 +222,8 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
  * Called when the logout link is clicked.
  */
 function logout() {
-  serverRequest("logout", {}).then(function (result) {
+  const payload = {"operation": "logout"};
+  serverRequest("logout", payload).then(function (result) {
     if (result.response.ok) {
       localStorage.clear();
       showContent("login");
