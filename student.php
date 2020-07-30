@@ -120,7 +120,6 @@
  */
 function preflight(&$request, &$response, &$db)
 {
-  // TODO: add some more checking here
   $headers = getallheaders();
   $origin = $headers['Origin'];
   if ($origin == null) {
@@ -346,26 +345,26 @@ function save(&$request, &$response, &$db)
   if (isSessionExpired($request, $response, $db)) {
     return false;
   }
+  $siteid = $request->param("siteid");
+  log_to_console($siteid);
   $site = $request->param("site");
   $siteUser = $request->param("siteuser");
   $sitePassword = $request->param("sitepassword");
   $iv = $request->param("iv");
   $userName = $request->token("username_token");
   $now = date("c");
-  $exists = "SELECT site, COUNT(site) AS count FROM user_safe WHERE site = '$site' AND username = '$userName'";
+  $exists = "SELECT siteid, COUNT(siteid) AS count FROM user_safe WHERE siteid = '$siteid'";
   $resultExists = $db->query($exists);
   $rowExists = $resultExists->fetch(PDO::FETCH_ASSOC);
   if ($rowExists["count"] == 0) {
-    $sqlCount = "SELECT siteid, COUNT(siteid) AS count FROM user_safe";
-    $resultCount = $db->query($sqlCount);
-    $rowCount = $resultCount->fetch(PDO::FETCH_ASSOC);
-    $index = $rowCount['count'] + 1;
-    $sql = "INSERT INTO user_safe VALUES ('$index', '$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
-    $db->exec($sql);
+    $sql = "INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) "
+      . "VALUES ('$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
   } else {
-    $update = "UPDATE user_safe SET siteuser = '$siteUser', sitepasswd = '$sitePassword', siteiv = '$iv', modified = '$now' WHERE site = '$site' AND username = '$userName'";
-    $db->exec($update);
+    log_to_console($siteid);
+    $sql = "UPDATE user_safe SET site = '$site', siteuser = '$siteUser', sitepasswd = '$sitePassword', "
+      . "siteiv = '$iv', modified = '$now' WHERE siteid = '$siteid'";
   }
+  $db->exec($sql);
   $response->set_http_code(200);
   $response->success("Save to safe succeeded");
   return true;

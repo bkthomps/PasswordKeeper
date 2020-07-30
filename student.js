@@ -161,7 +161,7 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
  * Called when the add password form is submitted.
  */
 async function save(siteIdInput, siteInput, userInput, passInput) {
-  // FIXME: if you modify the site parameter, it will create a new entry instead of just modifying it
+  const siteId = siteIdInput.value;
   const site = siteInput.value;
   const siteUser = userInput.value;
   const sitePassword = passInput.value;
@@ -169,6 +169,7 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
   const siteIv = randomBytes(16);
   const encrypted = await encrypt(sitePassword, hashedPassword, siteIv);
   const payload = {
+    "siteid": siteId,
     "site": site,
     "siteuser": siteUser,
     "sitepassword": encrypted,
@@ -190,6 +191,9 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
  * a form element.
  */
 function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) {
+  if (siteIdElement) {
+    siteIdElement.value = siteid;
+  }
   const payload = {"siteid": siteid};
   serverRequest("load", payload).then(async function (result) {
     if (result.response.ok) {
