@@ -211,7 +211,7 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
   try {
     $operation = $request->param("operation");
     // If there is no web session set, and it's not a signup or login, it is unauthorized
-    if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
