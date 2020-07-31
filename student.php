@@ -163,11 +163,11 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $operation = $request->param("operation");
     if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $userSession = $request->cookie("user_session");
-      // This happens if user clears their cookies
+      // This happens if user clears their cookies (or if they are disabled)
       if (!exists($userSession)) {
         $response->delete_cookie("user_session");
         $response->set_http_code(401);
-        $response->failure("Session expired, please login again");
+        $response->failure("Session expired, please login again, and make sure cookies are enabled");
         return false;
       }
       $now = date("c");
@@ -210,11 +210,11 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
   try {
     $operation = $request->param("operation");
     // If there is no web session set, and it's not a signup or login, it is unauthorized
-    if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
-      $response->failure("Unauthorized");
       $response->set_http_code(401);
+      $response->failure("Session expired, please login again");
       return false;
     }
     // There is an extremely small chance that this throws an error due to the session id
