@@ -125,7 +125,7 @@ function preflight(&$request, &$response, &$db)
     $response->failure("Origin not provided");
     return false;
   }
-  if ($request->token("websessionid")) {
+  if ($request->token("web_session")) {
     return preflight_valid_web_session($request, $response, $db);
   }
   return preflight_invalid_web_session($request, $response, $db);
@@ -133,85 +133,92 @@ function preflight(&$request, &$response, &$db)
 
 function preflight_valid_web_session(&$request, &$response, &$db)
 {
-  $webSessionId = $request->token("websessionid");
-  // Get current web session expiry date
-  $now = date("c");
-  $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
-  $webResult = $db->query($sqlWebSessionId);
-  $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
-  // If the web session is expired, the user must login again
-  if ($now > $webRow["expires"]) {
-    $response->set_token("web_session_id", null);
-    $response->delete_cookie("user_session");
-    $response->set_http_code(401);
-    $response->failure("Session expired, please login again");
-    return false;
-  }
-  // Update the ip in the web session
-  $client_ip = $request->client_ip();
-  $sqlUpdateMetadata = "UPDATE web_session SET metadata = '$client_ip' WHERE sessionid = '$webSessionId'";
-  $db->exec($sqlUpdateMetadata);
-  // Check the user session expiry, unless it's a login or signup
-  $operation = $request->param("operation");
-  if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
-    $userSession = $request->cookie("user_session");
-    // This should never happen
-    if (!$userSession) {
-      $response->set_http_code(500);
-      $response->failure("Internal error");
-      return false;
-    }
+  try {
+    $webSession = $request->token("web_session");
+    // Get current web session expiry date
     $now = date("c");
-    $sqlUserSession = "SELECT expires, COUNT(expires) AS count FROM user_session WHERE sessionid = '$userSession'";
-    $userResult = $db->query($sqlUserSession);
-    $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
-    // This should never happen
-    if ($userRow["count"] == 0) {
-      $response->set_http_code(500);
-      $response->failure("Internal error");
-      return false;
-    }
-    // Check if user session is expired
-    if ($now > $userRow["expires"]) {
-      $response->set_token("web_session_id", null);
+    $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSession'";
+    $webResult = $db->query($sqlWebSessionId);
+    $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
+    // If the web session is expired, the user must login again
+    if ($now > $webRow["expires"]) {
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
       $response->failure("Session expired, please login again");
-      return true;
+      return false;
     }
-    $later = date("c", time() + 15 * 60);
-    $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE sessionid = '$userSession'";
-    $db->exec($sqlUpdateExpiry);
+    // Update the ip in the web session
+    $client_ip = $request->client_ip();
+    $sqlUpdateMetadata = "UPDATE web_session SET metadata = '$client_ip' WHERE sessionid = '$webSession'";
+    $db->exec($sqlUpdateMetadata);
+    // Check the user session expiry, unless it's a login or signup
+    $operation = $request->param("operation");
+    if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+      $userSession = $request->cookie("user_session");
+      // This should never happen
+      if (!$userSession) {
+        $response->set_http_code(500);
+        $response->failure("Internal error");
+        return false;
+      }
+      $now = date("c");
+      $sqlUserSession = "SELECT expires, COUNT(expires) AS count FROM user_session WHERE sessionid = '$userSession'";
+      $userResult = $db->query($sqlUserSession);
+      $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
+      // This should never happen
+      if ($userRow["count"] == 0) {
+        $response->set_http_code(500);
+        $response->failure("Internal error");
+        return false;
+      }
+      // Check if user session is expired
+      if ($now > $userRow["expires"]) {
+        $response->delete_cookie("user_session");
+        $response->set_http_code(401);
+        $response->failure("Session expired, please login again");
+        return true;
+      }
+      $later = date("c", time() + 15 * 60);
+      $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE sessionid = '$userSession'";
+      $db->exec($sqlUpdateExpiry);
+    }
+    $response->set_http_code(200);
+    $response->success("Request OK");
+    return true;
+  } catch (Exception $e) {
+    $response->set_http_code(500);
+    $response->failure("Internal server error, please try the same action again");
+    return false;
   }
-  $response->set_http_code(200);
-  $response->success("Request OK");
-  return true;
 }
 
 function preflight_invalid_web_session(&$request, &$response, &$db)
 {
-  $operation = $request->param("operation");
-  // If there is no web session set, and it's not a signup or login, it is unauthorized
-  if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
-    $response->set_token("web_session_id", null);
-    $response->delete_cookie("user_session");
-    $response->failure("Unauthorized");
-    $response->set_http_code(401);
+  try {
+    $operation = $request->param("operation");
+    // If there is no web session set, and it's not a signup or login, it is unauthorized
+    if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+      $response->delete_cookie("user_session");
+      $response->failure("Unauthorized");
+      $response->set_http_code(401);
+      return false;
+    }
+    // This could technically be a duplicate, but the user should just try again once the
+    // user receives the internal server error. This chance is extremely small, however.
+    $webSession = base64_encode(random_bytes(176));
+    $later = date("c", time() + 12 * 60 * 60);
+    $ip = $request->client_ip();
+    $insert = "INSERT INTO web_session VALUES ('$webSession', '$later', '$ip')";
+    $db->exec($insert);
+    $response->set_token("web_session", $webSession);
+    $response->set_http_code(200);
+    $response->success("Request OK");
+    return true;
+  } catch (Exception $e) {
+    $response->set_http_code(500);
+    $response->failure("Internal server error, please try the same action again");
     return false;
   }
-  // Create a new web session
-  $sqlWeb = "SELECT sessionid, COUNT(*) as count FROM web_session";
-  $result = $db->query($sqlWeb);
-  $row = $result->fetch(PDO::FETCH_ASSOC);
-  $webSessionId = $row["count"] + 1;
-  $later = date("c", time() + 12 * 60 * 60);
-  $ip = $request->client_ip();
-  $insert = "INSERT INTO web_session VALUES ('$webSessionId', '$later', '$ip')";
-  $db->exec($insert);
-  $response->set_token("websessionid", $webSessionId);
-  $response->set_http_code(200);
-  $response->success("Request OK");
-  return true;
 }
 
 /**
@@ -243,8 +250,8 @@ function signup(&$request, &$response, &$db)
     $db->exec($sqlUser);
     $sqlLogin = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
     $db->exec($sqlLogin);
-    // This could technically be a duplicate, but the user should just try again once the user
-    // receives the internal server error. This chance is extremely small, however.
+    // This could technically be a duplicate, but the user should just try again once the
+    // user receives the internal server error. This chance is extremely small, however.
     $randomSession = base64_encode(random_bytes(128));
     $now = date("c");
     $sqlUser = "INSERT INTO user_session VALUES ('$randomSession', '$username', '$now')";
@@ -308,7 +315,6 @@ function login(&$request, &$response, &$db)
     $loginResult = $db->query($sqlUserLogin);
     $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
     if ($now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
-      $response->set_token("web_session_id", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
       $response->failure("Invalid authentication");
@@ -329,8 +335,8 @@ function login(&$request, &$response, &$db)
       $response->failure("Username or password incorrect");
       return false;
     }
-    // This could technically be a duplicate, but the user should just try again once the user
-    // receives the internal server error. This chance is extremely small, however.
+    // This could technically be a duplicate, but the user should just try again once the
+    // user receives the internal server error. This chance is extremely small, however.
     $userSession = base64_encode(random_bytes(128));
     $later = date("c", time() + 15 * 60);
     $sqlUpdateExpiry = "UPDATE user_session SET sessionid = '$userSession', expires = '$later' WHERE username = '$username'";
@@ -405,19 +411,22 @@ function save(&$request, &$response, &$db)
     if ($rowExists["count"] == 0) {
       $sql = "INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) "
         . "VALUES ('$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
-    } else {
-      $sql = "UPDATE user_safe SET site = '$site', siteuser = '$siteUser', sitepasswd = '$sitePassword', "
-        . "siteiv = '$iv', modified = '$now' WHERE siteid = '$siteId'";
+      $db->exec($sql);
+      $response->set_http_code(200);
+      $response->success("Successfully saved to safe");
+      return true;
     }
+    $sql = "UPDATE user_safe SET site = '$site', siteuser = '$siteUser', sitepasswd = '$sitePassword', "
+      . "siteiv = '$iv', modified = '$now' WHERE siteid = '$siteId'";
     $db->exec($sql);
+    $response->set_http_code(200);
+    $response->success("Successfully updated to safe");
+    return true;
   } catch (Exception $e) {
     $response->set_http_code(412);
     $response->failure("This site is already saved");
     return false;
   }
-  $response->set_http_code(200);
-  $response->success("Save to safe succeeded");
-  return true;
 }
 
 /**
@@ -454,7 +463,6 @@ function logout(&$request, &$response, &$db)
   $now = date("c");
   $invalidate = "UPDATE user_session SET expires = '$now' WHERE sessionid = '$userSession'";
   $db->exec($invalidate);
-  $response->set_token("web_session_id", null);
   $response->delete_cookie("user_session");
   $response->set_http_code(200);
   $response->success("Successfully logged out");
