@@ -306,12 +306,8 @@ function login(&$request, &$response, &$db)
   try {
     $username = $request->param("username");
     $plainTextPassword = $request->param("password");
-    $webSessionId = $request->param("websessionid");
     $challenge = $request->param("challenge");
     $now = date("c");
-    $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSessionId'";
-    $webResult = $db->query($sqlWebSessionId);
-    $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
     $sqlUserLogin = "SELECT salt, challenge, expires FROM user_login WHERE username = '$username'";
     $loginResult = $db->query($sqlUserLogin);
     $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
