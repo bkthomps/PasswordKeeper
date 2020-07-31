@@ -146,7 +146,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $sqlWebSessionId->execute();
     $webRow = $sqlWebSessionId->fetch(PDO::FETCH_ASSOC);
     // If the web session is expired, the user must login again
-    if ($webRow["count"] != 0 && strtotime($now) > strtotime($webRow["expires"])) {
+    if ($webRow["count"] != 0 || strtotime($now) > strtotime($webRow["expires"])) {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
