@@ -168,7 +168,6 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
  * Called when the add password form is submitted.
  */
 async function save(siteIdInput, siteInput, userInput, passInput) {
-  const siteId = siteIdInput.value;
   const site = siteInput.value;
   const siteUser = userInput.value;
   const sitePassword = passInput.value;
@@ -177,7 +176,6 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
   const encrypted = await encrypt(sitePassword, hashedPassword, siteIv);
   const payload = {
     "operation": "save",
-    "siteid": siteId,
     "site": site,
     "siteuser": siteUser,
     "sitepassword": encrypted,

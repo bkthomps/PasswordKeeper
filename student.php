@@ -386,24 +386,29 @@ function sites(&$request, &$response, &$db)
  */
 function save(&$request, &$response, &$db)
 {
-  $siteid = $request->param("siteid");
   $site = $request->param("site");
   $siteUser = $request->param("siteuser");
   $sitePassword = $request->param("sitepassword");
   $iv = $request->param("iv");
   $userName = $request->cookie("username");
   $now = date("c");
-  $exists = "SELECT siteid, COUNT(siteid) AS count FROM user_safe WHERE siteid = '$siteid'";
+  $exists = "SELECT site, COUNT(site) AS count FROM user_safe WHERE site = 'site' AND username = 'username'";
   $resultExists = $db->query($exists);
   $rowExists = $resultExists->fetch(PDO::FETCH_ASSOC);
-  if ($rowExists["count"] == 0) {
-    $sql = "INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) "
-      . "VALUES ('$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
-  } else {
-    $sql = "UPDATE user_safe SET site = '$site', siteuser = '$siteUser', sitepasswd = '$sitePassword', "
-      . "siteiv = '$iv', modified = '$now' WHERE siteid = '$siteid'";
+  try {
+    if ($rowExists["count"] == 0) {
+      $sql = "INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) "
+        . "VALUES ('$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
+    } else {
+      $sql = "UPDATE user_safe SET site = '$site', siteuser = '$siteUser', sitepasswd = '$sitePassword', "
+        . "siteiv = '$iv', modified = '$now' WHERE site = 'site' AND username = 'username'";
+    }
+    $db->exec($sql);
+  } catch (Exception $e) {
+    $response->set_http_code(412);
+    $response->failure("This site is already saved");
+    return false;
   }
-  $db->exec($sql);
   $response->set_http_code(200);
   $response->success("Save to safe succeeded");
   return true;
