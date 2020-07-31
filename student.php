@@ -130,10 +130,8 @@ function preflight(&$request, &$response, &$db)
     return false;
   }
   if (exists($request->token("web_session"))) {
-    log_to_console("Valid");
     return preflight_valid_web_session($request, $response, $db);
   }
-  log_to_console("Invalid");
   return preflight_invalid_web_session($request, $response, $db);
 }
 
@@ -148,8 +146,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $sqlWebSessionId->execute();
     $webRow = $sqlWebSessionId->fetch(PDO::FETCH_ASSOC);
     // If the web session is expired, the user must login again
-    if (strtotime($now) > strtotime($webRow["expires"])) {
-      log_to_console("AAA");
+    if ($now > $webRow["expires"]) {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
@@ -169,7 +166,6 @@ function preflight_valid_web_session(&$request, &$response, &$db)
       // This happens if user clears their cookies (or if they are disabled)
       // This can also happen if the user changed the URL after having logged out
       if (!exists($userSession)) {
-        log_to_console("BBB");
         $response->delete_cookie("user_session");
         $response->set_http_code(401);
         $response->failure("Session expired, please login again, and make sure cookies are enabled");
@@ -187,8 +183,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
         return false;
       }
       // Check if user session is expired
-      if (strtotime($now) > strtotime($userRow["expires"])) {
-        log_to_console("CCC");
+      if ($now > $userRow["expires"]) {
         $response->set_token("web_session", null);
         $response->delete_cookie("user_session");
         $response->set_http_code(401);
@@ -217,7 +212,6 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
     $operation = $request->param("operation");
     // If there is no web session set, and it's not a signup or login, it is unauthorized
     if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
-      log_to_console("DDD");
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
@@ -357,7 +351,7 @@ function login(&$request, &$response, &$db)
     $sqlUserLogin->bindValue(1, $username);
     $sqlUserLogin->execute();
     $loginRow = $sqlUserLogin->fetch(PDO::FETCH_ASSOC);
-    if (strtotime($now) > strtotime($loginRow["expires"]) || $challenge !== $loginRow["challenge"]) {
+    if ($now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
