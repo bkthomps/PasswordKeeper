@@ -102,7 +102,7 @@ function login(userInput, passInput) {
   const password = passInput.value;
   credentials(username, password).then(function (idJson) {
     if (idJson !== 0) {
-      const saltHashPass = hash(idJson.salt + password);
+      const saltHashPass = hash(password.concat(idJson.salt));
       const payload = {
         "operation": "login",
         "username": username,
@@ -129,7 +129,7 @@ function login(userInput, passInput) {
 /**
  * Called when the user submits the signup form.
  */
-function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
+async function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
   const username = userInput.value;
   const password = passInput.value;
   const passwordConfirm = passInput2.value;
@@ -152,7 +152,7 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
     return;
   }
   const salt = randomBytes(32);
-  const saltHashPass = hash(salt + password);
+  const saltHashPass = await hash(password.concat(salt));
   const payload = {
     "operation": "signup",
     "username": username,
