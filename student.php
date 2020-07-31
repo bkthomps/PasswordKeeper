@@ -120,16 +120,9 @@
  */
 function preflight(&$request, &$response, &$db)
 {
-  // CORS (Cross-Origin Resource Sharing) is always disallowed
-  if ($request->header("Sec-Fetch-Site") !== "same-origin") {
-    $response->set_http_code(403);
-    $response->failure("CORS forbidden");
-    return false;
-  }
-  // Never allow a missing origin
   if (!$request->header("Origin")) {
     $response->set_http_code(403);
-    $response->failure("Missing origin");
+    $response->failure("Origin not provided");
     return false;
   }
   if ($request->token("websessionid")) {
