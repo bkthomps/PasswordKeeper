@@ -111,6 +111,10 @@
  *
  *****************************************************************************/
 
+function exists(&$object)
+{
+  return !is_null($object) && $object !== "null";
+}
 
 /**
  * Performs any resource agnostic preflight validation and can set generic response values.
@@ -120,12 +124,12 @@
  */
 function preflight(&$request, &$response, &$db)
 {
-  if (!$request->header("Origin")) {
+  if (!exists($request->header("Origin"))) {
     $response->set_http_code(403);
     $response->failure("Origin not provided");
     return false;
   }
-  if ($request->token("web_session")) {
+  if (exists($request->token("web_session"))) {
     return preflight_valid_web_session($request, $response, $db);
   }
   return preflight_invalid_web_session($request, $response, $db);
@@ -154,10 +158,13 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $db->exec($sqlUpdateMetadata);
     // Check the user session expiry, unless it's a login or signup
     $operation = $request->param("operation");
-    if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if (!exists($operation)) {
+      log_to_console("Warning: valid preflight operation was not set");
+    }
+    if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $userSession = $request->cookie("user_session");
       // This should never happen
-      if (!$userSession) {
+      if (!exists($userSession)) {
         $response->set_http_code(500);
         $response->failure("Internal error");
         return false;
@@ -198,8 +205,11 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
 {
   try {
     $operation = $request->param("operation");
+    if (!exists($operation)) {
+      log_to_console("Warning: invalid preflight operation was not set");
+    }
     // If there is no web session set, and it's not a signup or login, it is unauthorized
-    if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->failure("Unauthorized");
@@ -237,7 +247,7 @@ function signup(&$request, &$response, &$db)
     $email = $request->param("email");
     $fullName = $request->param("fullname");
     $salt = $request->param("salt");
-    $sqlUnique = "SELECT username, email, COUNT(*) as count FROM user WHERE username = '$username' OR email = '$email'";
+    $sqlUnique = "SELECT username, email, COUNT(*) AS count FROM user WHERE username = '$username' OR email = '$email'";
     $result = $db->query($sqlUnique);
     $row = $result->fetch(PDO::FETCH_ASSOC);
     if ($row["count"] != 0) {
