@@ -468,7 +468,6 @@ function logout(&$request, &$response, &$db)
   $now = date("c");
   $invalidate = "UPDATE user_session SET expires = '$now' WHERE sessionid = '$userSession'";
   $db->exec($invalidate);
-  $response->set_token("web_session", null);
   $response->delete_cookie("user_session");
   $response->set_http_code(200);
   $response->success("Successfully logged out");
