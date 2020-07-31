@@ -142,6 +142,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
     // If the web session is expired, the user must login again
     if ($now > $webRow["expires"]) {
+      $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
       $response->failure("Session expired, please login again");
@@ -173,6 +174,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
       }
       // Check if user session is expired
       if ($now > $userRow["expires"]) {
+        $response->set_token("web_session", null);
         $response->delete_cookie("user_session");
         $response->set_http_code(401);
         $response->failure("Session expired, please login again");
@@ -198,6 +200,7 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
     $operation = $request->param("operation");
     // If there is no web session set, and it's not a signup or login, it is unauthorized
     if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+      $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->failure("Unauthorized");
       $response->set_http_code(401);
@@ -230,9 +233,10 @@ function signup(&$request, &$response, &$db)
 {
   try {
     $username = $request->param("username");
-    $plainTextPassword = $request->param("password");
+    $password = $request->param("password");
     $email = $request->param("email");
     $fullName = $request->param("fullname");
+    $salt = $request->param("salt");
     $sqlUnique = "SELECT username, email, COUNT(*) as count FROM user WHERE username = '$username' OR email = '$email'";
     $result = $db->query($sqlUnique);
     $row = $result->fetch(PDO::FETCH_ASSOC);
@@ -241,12 +245,9 @@ function signup(&$request, &$response, &$db)
       $response->failure("Either username or email has already been used");
       return false;
     }
-    $salt = base64_encode(random_bytes(32));
-    $saltedPlainText = $salt . $plainTextPassword;
-    $hashedPassword = openssl_digest($saltedPlainText, "SHA256");
     $now = date("c");
     $challenge = base64_encode(random_bytes(64));
-    $sqlUser = "INSERT INTO user VALUES ('$username', '$hashedPassword', '$email', '$fullName', 'true', '$now')";
+    $sqlUser = "INSERT INTO user VALUES ('$username', '$password', '$email', '$fullName', 'true', '$now')";
     $db->exec($sqlUser);
     $sqlLogin = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
     $db->exec($sqlLogin);
@@ -276,7 +277,7 @@ function identify(&$request, &$response, &$db)
 {
   try {
     $username = $request->param("username");
-    $sqlCount = "SELECT username, COUNT(*) as count FROM user_login WHERE username = '$username'";
+    $sqlCount = "SELECT username, salt, COUNT(*) as count FROM user_login WHERE username = '$username'";
     $result = $db->query($sqlCount);
     $row = $result->fetch(PDO::FETCH_ASSOC);
     if ($row["count"] == 0) {
@@ -284,10 +285,12 @@ function identify(&$request, &$response, &$db)
       $response->failure("Username or password incorrect");
       return false;
     }
+    $salt = $row["salt"];
     $challenge = base64_encode(random_bytes(64));
     $later = date("c", time() + 12 * 60 * 60);
     $sqlLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$later' WHERE username = '$username'";
     $db->exec($sqlLogin);
+    $response->set_data("salt", $salt);
     $response->set_data("challenge", $challenge);
     $response->set_http_code(200);
     $response->success("Successfully identified user");
@@ -308,13 +311,14 @@ function login(&$request, &$response, &$db)
 {
   try {
     $username = $request->param("username");
-    $plainTextPassword = $request->param("password");
+    $password = $request->param("password");
     $challenge = $request->param("challenge");
     $now = date("c");
     $sqlUserLogin = "SELECT salt, challenge, expires FROM user_login WHERE username = '$username'";
     $loginResult = $db->query($sqlUserLogin);
     $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
     if ($now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
+      $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
       $response->failure("Invalid authentication");
@@ -324,10 +328,7 @@ function login(&$request, &$response, &$db)
     $now = date("c");
     $sqlResetLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$now' WHERE username = '$username'";
     $db->exec($sqlResetLogin);
-    $salt = $loginRow["salt"];
-    $saltedPlainText = $salt . $plainTextPassword;
-    $hashedPassword = openssl_digest($saltedPlainText, "SHA256");
-    $sql = "SELECT fullname, COUNT(*) as count FROM user WHERE username = '$username' AND passwd = '$hashedPassword'";
+    $sql = "SELECT fullname, COUNT(*) as count FROM user WHERE username = '$username' AND passwd = '$password'";
     $result = $db->query($sql);
     $row = $result->fetch(PDO::FETCH_ASSOC);
     if ($row['count'] == 0) {
@@ -463,6 +464,7 @@ function logout(&$request, &$response, &$db)
   $now = date("c");
   $invalidate = "UPDATE user_session SET expires = '$now' WHERE sessionid = '$userSession'";
   $db->exec($invalidate);
+  $response->set_token("web_session", null);
   $response->delete_cookie("user_session");
   $response->set_http_code(200);
   $response->success("Successfully logged out");

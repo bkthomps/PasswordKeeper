@@ -102,10 +102,12 @@ function login(userInput, passInput) {
   const password = passInput.value;
   credentials(username, password).then(function (idJson) {
     if (idJson !== 0) {
+      const saltHashPass = hash(idJson.salt + password);
       const payload = {
         "operation": "login",
         "username": username,
-        "password": password,
+        "password": saltHashPass,
+        "salt": idJson.salt,
         "websessionid": idJson.websessionid,
         "challenge": idJson.challenge
       };
@@ -149,10 +151,13 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
     status("Limit field length to 200 characters");
     return;
   }
+  const salt = randomBytes(32);
+  const saltHashPass = hash(salt + password);
   const payload = {
     "operation": "signup",
     "username": username,
-    "password": password,
+    "password": saltHashPass,
+    "salt": salt,
     "email": email,
     "fullname": fullName
   };
