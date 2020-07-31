@@ -161,7 +161,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $sqlUpdateMetadata->execute();
     // Check the user session expiry, unless it's a login or signup
     $operation = $request->param("operation");
-    if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $userSession = $request->cookie("user_session");
       // This happens if user clears their cookies (or if they are disabled)
       // This can also happen if the user changed the URL after having logged out
