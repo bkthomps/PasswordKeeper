@@ -211,8 +211,8 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
       $response->set_http_code(401);
       return false;
     }
-    // This could technically be a duplicate, but the user should just try again once the
-    // user receives the internal server error. This chance is extremely small, however.
+    // There is an extremely small chance that this throws an error due to the session id
+    // already existing. In that case, the user would be notified to try connecting again.
     $webSession = base64_encode(random_bytes(176));
     $later = date("c", time() + 12 * 60 * 60);
     $ip = $request->client_ip();
@@ -256,8 +256,8 @@ function signup(&$request, &$response, &$db)
     $db->exec($sqlUser);
     $sqlLogin = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
     $db->exec($sqlLogin);
-    // This could technically be a duplicate, but the user should just try again once the
-    // user receives the internal server error. This chance is extremely small, however.
+    // There is an extremely small chance that this throws an error due to the session id
+    // already existing. In that case, the user would be notified to try connecting again.
     $randomSession = base64_encode(random_bytes(128));
     $now = date("c");
     $sqlUser = "INSERT INTO user_session VALUES ('$randomSession', '$username', '$now')";
