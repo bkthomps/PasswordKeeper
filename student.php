@@ -164,6 +164,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $userSession = $request->cookie("user_session");
       // This happens if user clears their cookies (or if they are disabled)
+      // This can also happen if the user changed the URL after having logged out
       if (!exists($userSession)) {
         $response->delete_cookie("user_session");
         $response->set_http_code(401);
