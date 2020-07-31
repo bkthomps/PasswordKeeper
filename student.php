@@ -120,12 +120,12 @@
  */
 function preflight(&$request, &$response, &$db)
 {
-  if (!$request->header("Origin")) {
+  if (is_null($request->header("Origin"))) {
     $response->set_http_code(403);
     $response->failure("Origin not provided");
     return false;
   }
-  if ($request->token("web_session")) {
+  if (!is_null($request->token("web_session"))) {
     return preflight_valid_web_session($request, $response, $db);
   }
   return preflight_invalid_web_session($request, $response, $db);
@@ -157,7 +157,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $userSession = $request->cookie("user_session");
       // This should never happen
-      if (!$userSession) {
+      if (is_null($userSession)) {
         $response->set_http_code(500);
         $response->failure("Internal error");
         return false;
@@ -167,7 +167,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
       $userResult = $db->query($sqlUserSession);
       $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
       // This should never happen
-      if ($userRow["count"] == 0) {
+      if ($userRow["count"] === 0) {
         $response->set_http_code(500);
         $response->failure("Internal error");
         return false;
@@ -199,7 +199,7 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
   try {
     $operation = $request->param("operation");
     // If there is no web session set, and it's not a signup or login, it is unauthorized
-    if ($operation && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if (!is_null($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->failure("Unauthorized");
@@ -237,10 +237,10 @@ function signup(&$request, &$response, &$db)
     $email = $request->param("email");
     $fullName = $request->param("fullname");
     $salt = $request->param("salt");
-    $sqlUnique = "SELECT username, email, COUNT(*) as count FROM user WHERE username = '$username' OR email = '$email'";
+    $sqlUnique = "SELECT username, email, COUNT(*) AS count FROM user WHERE username = '$username' OR email = '$email'";
     $result = $db->query($sqlUnique);
     $row = $result->fetch(PDO::FETCH_ASSOC);
-    if ($row["count"] != 0) {
+    if ($row["count"] !== 0) {
       $response->set_http_code(400);
       $response->failure("Either username or email has already been used");
       return false;
@@ -280,7 +280,7 @@ function identify(&$request, &$response, &$db)
     $sqlCount = "SELECT username, salt, COUNT(*) as count FROM user_login WHERE username = '$username'";
     $result = $db->query($sqlCount);
     $row = $result->fetch(PDO::FETCH_ASSOC);
-    if ($row["count"] == 0) {
+    if ($row["count"] === 0) {
       $response->set_http_code(400);
       $response->failure("Username or password incorrect");
       return false;
@@ -331,7 +331,7 @@ function login(&$request, &$response, &$db)
     $sql = "SELECT fullname, COUNT(*) as count FROM user WHERE username = '$username' AND passwd = '$password'";
     $result = $db->query($sql);
     $row = $result->fetch(PDO::FETCH_ASSOC);
-    if ($row['count'] == 0) {
+    if ($row['count'] === 0) {
       $response->set_http_code(401);
       $response->failure("Username or password incorrect");
       return false;
@@ -409,7 +409,7 @@ function save(&$request, &$response, &$db)
   $resultExists = $db->query($exists);
   $rowExists = $resultExists->fetch(PDO::FETCH_ASSOC);
   try {
-    if ($rowExists["count"] == 0) {
+    if ($rowExists["count"] === 0) {
       $sql = "INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) "
         . "VALUES ('$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
       $db->exec($sql);
