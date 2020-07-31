@@ -141,12 +141,12 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $webSession = $request->token("web_session");
     // Get current web session expiry date
     $now = date("c");
-    $sqlWebSessionId = $db->prepare("SELECT expires, COUNT(expires) AS count FROM web_session WHERE sessionid = ?");
+    $sqlWebSessionId = $db->prepare("SELECT expires FROM web_session WHERE sessionid = ?");
     $sqlWebSessionId->bindValue(1, $webSession);
     $sqlWebSessionId->execute();
     $webRow = $sqlWebSessionId->fetch(PDO::FETCH_ASSOC);
     // If the web session is expired, the user must login again
-    if ($webRow["count"] != 0 && strtotime($now) > strtotime($webRow["expires"])) {
+    if ($now > $webRow["expires"]) {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
@@ -183,7 +183,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
         return false;
       }
       // Check if user session is expired
-      if (strtotime($now) > strtotime($userRow["expires"])) {
+      if ($now > $userRow["expires"]) {
         $response->set_token("web_session", null);
         $response->delete_cookie("user_session");
         $response->set_http_code(401);
@@ -351,7 +351,7 @@ function login(&$request, &$response, &$db)
     $sqlUserLogin->bindValue(1, $username);
     $sqlUserLogin->execute();
     $loginRow = $sqlUserLogin->fetch(PDO::FETCH_ASSOC);
-    if (strtotime($now) > strtotime($loginRow["expires"]) || $challenge !== $loginRow["challenge"]) {
+    if ($now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
       $response->set_http_code(401);
