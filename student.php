@@ -141,9 +141,10 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $webSession = $request->token("web_session");
     // Get current web session expiry date
     $now = date("c");
-    $sqlWebSessionId = "SELECT expires FROM web_session WHERE sessionid = '$webSession'";
-    $webResult = $db->query($sqlWebSessionId);
-    $webRow = $webResult->fetch(PDO::FETCH_ASSOC);
+    $sqlWebSessionId = $db->prepare("SELECT expires FROM web_session WHERE sessionid = ?");
+    $sqlWebSessionId->bindValue(1, $webSession);
+    $sqlWebSessionId->execute();
+    $webRow = $sqlWebSessionId->fetch(PDO::FETCH_ASSOC);
     // If the web session is expired, the user must login again
     if ($now > $webRow["expires"]) {
       $response->set_token("web_session", null);
@@ -154,8 +155,10 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     }
     // Update the ip in the web session
     $client_ip = $request->client_ip();
-    $sqlUpdateMetadata = "UPDATE web_session SET metadata = '$client_ip' WHERE sessionid = '$webSession'";
-    $db->exec($sqlUpdateMetadata);
+    $sqlUpdateMetadata = $db->prepare("UPDATE web_session SET metadata = ? WHERE sessionid = ?");
+    $sqlUpdateMetadata->bindValue(1, $client_ip);
+    $sqlUpdateMetadata->bindValue(2, $webSession);
+    $sqlUpdateMetadata->execute();
     // Check the user session expiry, unless it's a login or signup
     $operation = $request->param("operation");
     if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
@@ -168,9 +171,10 @@ function preflight_valid_web_session(&$request, &$response, &$db)
         return false;
       }
       $now = date("c");
-      $sqlUserSession = "SELECT expires, COUNT(expires) AS count FROM user_session WHERE sessionid = '$userSession'";
-      $userResult = $db->query($sqlUserSession);
-      $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
+      $sqlUserSession = $db->prepare("SELECT expires, COUNT(expires) AS count FROM user_session WHERE sessionid = ?");
+      $sqlUserSession->bindValue(1, $userSession);
+      $sqlUserSession->execute();
+      $userRow = $sqlUserSession->fetch(PDO::FETCH_ASSOC);
       // This should never happen
       if ($userRow["count"] == 0) {
         $response->set_http_code(500);
@@ -186,8 +190,10 @@ function preflight_valid_web_session(&$request, &$response, &$db)
         return false;
       }
       $later = date("c", time() + 15 * 60);
-      $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE sessionid = '$userSession'";
-      $db->exec($sqlUpdateExpiry);
+      $sqlUpdateExpiry = $db->prepare("UPDATE user_session SET expires = ? WHERE sessionid = ?");
+      $sqlUpdateExpiry->bindValue(1, $later);
+      $sqlUpdateExpiry->bindValue(2, $userSession);
+      $sqlUpdateExpiry->execute();
     }
     $response->set_http_code(200);
     $response->success("Request OK");
@@ -216,8 +222,11 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
     $webSession = base64_encode(random_bytes(176));
     $later = date("c", time() + 12 * 60 * 60);
     $ip = $request->client_ip();
-    $insert = "INSERT INTO web_session VALUES ('$webSession', '$later', '$ip')";
-    $db->exec($insert);
+    $insert = $db->prepare("INSERT INTO web_session VALUES (?, ?, ?)");
+    $insert->bindValue(1, $webSession);
+    $insert->bindValue(2, $later);
+    $insert->bindValue(3, $ip);
+    $insert->execute();
     $response->set_token("web_session", $webSession);
     $response->set_http_code(200);
     $response->success("Request OK");
@@ -242,9 +251,11 @@ function signup(&$request, &$response, &$db)
     $email = $request->param("email");
     $fullName = $request->param("fullname");
     $salt = $request->param("salt");
-    $sqlUnique = "SELECT username, email, COUNT(*) AS count FROM user WHERE username = '$username' OR email = '$email'";
-    $result = $db->query($sqlUnique);
-    $row = $result->fetch(PDO::FETCH_ASSOC);
+    $sqlUnique = $db->prepare("SELECT username, email, COUNT(*) AS count FROM user WHERE username = ? OR email = ?");
+    $sqlUnique->bindValue(1, $username);
+    $sqlUnique->bindValue(2, $email);
+    $sqlUnique->execute();
+    $row = $sqlUnique->fetch(PDO::FETCH_ASSOC);
     if ($row["count"] != 0) {
       $response->set_http_code(400);
       $response->failure("Either username or email has already been used");
@@ -252,16 +263,28 @@ function signup(&$request, &$response, &$db)
     }
     $now = date("c");
     $challenge = base64_encode(random_bytes(64));
-    $sqlUser = "INSERT INTO user VALUES ('$username', '$password', '$email', '$fullName', 'true', '$now')";
-    $db->exec($sqlUser);
-    $sqlLogin = "INSERT INTO user_login VALUES ('$username', '$salt', '$challenge', '$now')";
-    $db->exec($sqlLogin);
+    $sqlUser = $db->prepare("INSERT INTO user VALUES (?, ?, ?, ?, 'true', ?)");
+    $sqlUser->bindValue(1, $username);
+    $sqlUser->bindValue(2, $password);
+    $sqlUser->bindValue(3, $email);
+    $sqlUser->bindValue(4, $fullName);
+    $sqlUser->bindValue(5, $now);
+    $sqlUser->execute();
+    $sqlLogin = $db->prepare("INSERT INTO user_login VALUES (?, ?, ?, ?)");
+    $sqlLogin->bindValue(1, $username);
+    $sqlLogin->bindValue(2, $salt);
+    $sqlLogin->bindValue(3, $challenge);
+    $sqlLogin->bindValue(4, $now);
+    $sqlLogin->execute();
     // There is an extremely small chance that this throws an error due to the session id
     // already existing. In that case, the user would be notified to try connecting again.
     $randomSession = base64_encode(random_bytes(128));
     $now = date("c");
-    $sqlUser = "INSERT INTO user_session VALUES ('$randomSession', '$username', '$now')";
-    $db->exec($sqlUser);
+    $sqlUser = $db->prepare("INSERT INTO user_session VALUES (?, ?, ?)");
+    $sqlUser->bindValue(1, $randomSession);
+    $sqlUser->bindValue(2, $username);
+    $sqlUser->bindValue(3, $now);
+    $sqlUser->execute();
     $response->set_http_code(201);
     $response->success("Account created");
     return true;
@@ -282,9 +305,10 @@ function identify(&$request, &$response, &$db)
 {
   try {
     $username = $request->param("username");
-    $sqlCount = "SELECT username, salt, COUNT(*) as count FROM user_login WHERE username = '$username'";
-    $result = $db->query($sqlCount);
-    $row = $result->fetch(PDO::FETCH_ASSOC);
+    $sqlCount = $db->prepare("SELECT username, salt, COUNT(*) as count FROM user_login WHERE username = ?");
+    $sqlCount->bindValue(1, $username);
+    $sqlCount->execute();
+    $row = $sqlCount->fetch(PDO::FETCH_ASSOC);
     if ($row["count"] == 0) {
       $response->set_http_code(400);
       $response->failure("Username or password incorrect");
@@ -293,8 +317,11 @@ function identify(&$request, &$response, &$db)
     $salt = $row["salt"];
     $challenge = base64_encode(random_bytes(64));
     $later = date("c", time() + 30);
-    $sqlLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$later' WHERE username = '$username'";
-    $db->exec($sqlLogin);
+    $sqlLogin = $db->prepare("UPDATE user_login SET challenge = ?, expires = ? WHERE username = ?");
+    $sqlLogin->bindValue(1, $challenge);
+    $sqlLogin->bindValue(2, $later);
+    $sqlLogin->bindValue(3, $username);
+    $sqlLogin->execute();
     $response->set_data("salt", $salt);
     $response->set_data("challenge", $challenge);
     $response->set_http_code(200);
@@ -319,9 +346,10 @@ function login(&$request, &$response, &$db)
     $password = $request->param("password");
     $challenge = $request->param("challenge");
     $now = date("c");
-    $sqlUserLogin = "SELECT salt, challenge, expires FROM user_login WHERE username = '$username'";
-    $loginResult = $db->query($sqlUserLogin);
-    $loginRow = $loginResult->fetch(PDO::FETCH_ASSOC);
+    $sqlUserLogin = $db->prepare("SELECT salt, challenge, expires FROM user_login WHERE username = ?");
+    $sqlUserLogin->bindValue(1, $username);
+    $sqlUserLogin->execute();
+    $loginRow = $sqlUserLogin->fetch(PDO::FETCH_ASSOC);
     if ($now > $loginRow["expires"] || $challenge !== $loginRow["challenge"]) {
       $response->set_token("web_session", null);
       $response->delete_cookie("user_session");
@@ -331,23 +359,31 @@ function login(&$request, &$response, &$db)
     }
     $challenge = base64_encode(random_bytes(64));
     $now = date("c");
-    $sqlResetLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$now' WHERE username = '$username'";
-    $db->exec($sqlResetLogin);
-    $sql = "SELECT fullname, COUNT(*) as count FROM user WHERE username = '$username' AND passwd = '$password'";
-    $result = $db->query($sql);
-    $row = $result->fetch(PDO::FETCH_ASSOC);
+    $sqlResetLogin = $db->prepare("UPDATE user_login SET challenge = ?, expires = ? WHERE username = ?");
+    $sqlResetLogin->bindValue(1, $challenge);
+    $sqlResetLogin->bindValue(2, $now);
+    $sqlResetLogin->bindValue(3, $username);
+    $sqlResetLogin->execute();
+    $sql = $db->prepare("SELECT fullname, COUNT(*) as count FROM user WHERE username = ? AND passwd = ?");
+    $sql->bindValue(1, $username);
+    $sql->bindValue(2, $password);
+    $sql->execute();
+    $row = $sql->fetch(PDO::FETCH_ASSOC);
     if ($row['count'] == 0) {
       $response->set_http_code(401);
       $response->failure("Username or password incorrect");
       return false;
     }
+    $fullName = $row['fullname'];
     // This could technically be a duplicate, but the user should just try again once the
     // user receives the internal server error. This chance is extremely small, however.
     $userSession = base64_encode(random_bytes(128));
     $later = date("c", time() + 15 * 60);
-    $sqlUpdateExpiry = "UPDATE user_session SET sessionid = '$userSession', expires = '$later' WHERE username = '$username'";
-    $db->exec($sqlUpdateExpiry);
-    $fullName = $row['fullname'];
+    $sqlUpdateExpiry = $db->prepare("UPDATE user_session SET sessionid = ?, expires = ? WHERE username = ?");
+    $sqlUpdateExpiry->bindValue(1, $userSession);
+    $sqlUpdateExpiry->bindValue(2, $later);
+    $sqlUpdateExpiry->bindValue(3, $username);
+    $sqlUpdateExpiry->execute();
     $response->add_cookie("user_session", $userSession, time() + 15 * 60);
     $response->set_http_code(200);
     $response->set_data("fullname", $fullName);
@@ -363,9 +399,10 @@ function login(&$request, &$response, &$db)
 function get_user_name(&$request, &$response, &$db)
 {
   $userSession = $request->cookie("user_session");
-  $sqlSession = "SELECT username FROM user_session WHERE sessionid = '$userSession'";
-  $resultSession = $db->query($sqlSession);
-  $rowSession = $resultSession->fetch(PDO::FETCH_ASSOC);
+  $sqlSession = $db->prepare("SELECT username FROM user_session WHERE sessionid = ?");
+  $sqlSession->bindValue(1, $userSession);
+  $sqlSession->execute();
+  $rowSession = $sqlSession->fetch(PDO::FETCH_ASSOC);
   return $rowSession["username"];
 }
 
@@ -378,9 +415,10 @@ function get_user_name(&$request, &$response, &$db)
 function sites(&$request, &$response, &$db)
 {
   $userName = get_user_name($request, $response, $db);
-  $sql = "SELECT site, siteid FROM user_safe WHERE username = '$userName'";
-  $result = $db->query($sql);
-  $rows = $result->fetchall(PDO::FETCH_ASSOC);
+  $sql = $db->prepare("SELECT site, siteid FROM user_safe WHERE username = ?");
+  $sql->bindValue(1, $userName);
+  $sql->execute();
+  $rows = $sql->fetchall(PDO::FETCH_ASSOC);
   $all_sites = array();
   $all_siteids = array();
   foreach ($rows as $row) {
@@ -410,26 +448,37 @@ function save(&$request, &$response, &$db)
   $sitePassword = $request->param("sitepassword");
   $iv = $request->param("iv");
   $now = date("c");
-  $exists = "SELECT site, COUNT(site) AS count FROM user_safe WHERE siteid = '$siteId'";
-  $resultExists = $db->query($exists);
-  $rowExists = $resultExists->fetch(PDO::FETCH_ASSOC);
+  $exists = $db->prepare("SELECT site, COUNT(site) AS count FROM user_safe WHERE siteid = ?");
+  $exists->bindValue(1, $siteId);
+  $exists->execute();
+  $rowExists = $exists->fetch(PDO::FETCH_ASSOC);
   try {
     if ($rowExists["count"] == 0) {
-      $sql = "INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) "
-        . "VALUES ('$userName', '$site', '$siteUser', '$sitePassword', '$iv', '$now')";
-      $db->exec($sql);
+      $sql = $db->prepare("INSERT INTO user_safe (username, site, siteuser, sitepasswd, siteiv, modified) VALUES (?, ?, ?, ?, ?, ?)");
+      $sql->bindValue(1, $userName);
+      $sql->bindValue(2, $site);
+      $sql->bindValue(3, $siteUser);
+      $sql->bindValue(4, $sitePassword);
+      $sql->bindValue(5, $iv);
+      $sql->bindValue(6, $now);
+      $sql->execute();
       $response->set_http_code(200);
       $response->success("Successfully saved to safe");
       return true;
     }
-    $sql = "UPDATE user_safe SET site = '$site', siteuser = '$siteUser', sitepasswd = '$sitePassword', "
-      . "siteiv = '$iv', modified = '$now' WHERE siteid = '$siteId'";
-    $db->exec($sql);
+    $sql = $db->prepare("UPDATE user_safe SET site = ?, siteuser = ?, sitepasswd = ?, siteiv = ?, modified = ? WHERE siteid = ?");
+    $sql->bindValue(1, $site);
+    $sql->bindValue(2, $siteUser);
+    $sql->bindValue(3, $sitePassword);
+    $sql->bindValue(4, $iv);
+    $sql->bindValue(5, $now);
+    $sql->bindValue(6, $siteId);
+    $sql->execute();
     $response->set_http_code(200);
     $response->success("Successfully updated to safe");
     return true;
   } catch (Exception $e) {
-    $response->set_http_code(412);
+    $response->set_http_code(422);
     $response->failure("This site is already saved");
     return false;
   }
@@ -443,9 +492,10 @@ function save(&$request, &$response, &$db)
 function load(&$request, &$response, &$db)
 {
   $siteid = $request->param("siteid");
-  $sql = "SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = '$siteid'";
-  $result = $db->query($sql);
-  $row = $result->fetch(PDO::FETCH_ASSOC);
+  $sql = $db->prepare("SELECT site, siteuser, sitepasswd, siteiv FROM user_safe WHERE siteid = ?");
+  $sql->bindValue(1, $siteid);
+  $sql->execute();
+  $row = $sql->fetch(PDO::FETCH_ASSOC);
   $site = $row["site"];
   $siteuser = $row["siteuser"];
   $sitepasswd = $row["sitepasswd"];
@@ -467,8 +517,10 @@ function logout(&$request, &$response, &$db)
 {
   $userSession = $request->cookie("user_session");
   $now = date("c");
-  $invalidate = "UPDATE user_session SET expires = '$now' WHERE sessionid = '$userSession'";
-  $db->exec($invalidate);
+  $invalidate = $db->prepare("UPDATE user_session SET expires = ? WHERE sessionid = ?");
+  $invalidate->bindValue(1, $now);
+  $invalidate->bindValue(2, $userSession);
+  $invalidate->execute();
   $response->delete_cookie("user_session");
   $response->set_http_code(200);
   $response->success("Successfully logged out");
