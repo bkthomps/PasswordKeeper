@@ -102,9 +102,8 @@ function login(userInput, passInput) {
   const password = passInput.value;
   credentials(username, password).then(async function (idJson) {
     if (idJson !== 0) {
-      const salt = idJson.salt;
-      const saltBase64 = btoa(salt.match(/\w{2}/g).map(function(a){return String.fromCharCode(parseInt(a, 16));} ).join(""))
-      const saltHashPass = await hash(saltBase64 + password);
+      const saltHashPass = await hash(password.concat(idJson.salt));
+      console.log(saltHashPass);
       const payload = {
         "operation": "login",
         "username": username,
@@ -154,9 +153,8 @@ async function signup(userInput, passInput, passInput2, emailInput, fullNameInpu
     return;
   }
   const salt = randomBytes(32);
-  const base64Salt = btoa(salt.match(/\w{2}/g).map(function(a){return String.fromCharCode(parseInt(a, 16));} ).join(""))
-  console.log(base64Salt);
-  const saltHashPass = await hash(base64Salt + password);
+  const saltHashPass = await hash(password.concat(salt));
+  console.log(saltHashPass);
   const payload = {
     "operation": "signup",
     "username": username,
