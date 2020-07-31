@@ -160,17 +160,18 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $operation = $request->param("operation");
     if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $userSession = $request->cookie("user_session");
-      // This should never happen (unless user clears cookies)
+      // This happens if user clears their cookies
       if (!exists($userSession)) {
-        $response->set_http_code(500);
-        $response->failure("Internal error");
+        $response->delete_cookie("user_session");
+        $response->set_http_code(401);
+        $response->failure("Session expired, please login again");
         return false;
       }
       $now = date("c");
       $sqlUserSession = "SELECT expires, COUNT(expires) AS count FROM user_session WHERE sessionid = '$userSession'";
       $userResult = $db->query($sqlUserSession);
       $userRow = $userResult->fetch(PDO::FETCH_ASSOC);
-      // This should never happen (unless user clears cookies)
+      // This should never happen
       if ($userRow["count"] == 0) {
         $response->set_http_code(500);
         $response->failure("Internal error");
