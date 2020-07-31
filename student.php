@@ -158,10 +158,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
     $db->exec($sqlUpdateMetadata);
     // Check the user session expiry, unless it's a login or signup
     $operation = $request->param("operation");
-    if (!exists($operation)) {
-      log_to_console("Warning: valid preflight operation was not set");
-    }
-    if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $userSession = $request->token("user_session");
       // This should never happen
       if (!exists($userSession)) {
@@ -185,7 +182,7 @@ function preflight_valid_web_session(&$request, &$response, &$db)
         $response->set_token("user_session", null);
         $response->set_http_code(401);
         $response->failure("Session expired, please login again");
-        return true;
+        return false;
       }
       $later = date("c", time() + 15 * 60);
       $sqlUpdateExpiry = "UPDATE user_session SET expires = '$later' WHERE sessionid = '$userSession'";
@@ -205,11 +202,8 @@ function preflight_invalid_web_session(&$request, &$response, &$db)
 {
   try {
     $operation = $request->param("operation");
-    if (!exists($operation)) {
-      log_to_console("Warning: invalid preflight operation was not set");
-    }
     // If there is no web session set, and it's not a signup or login, it is unauthorized
-    if (exists($operation) && $operation !== "identify" && $operation !== "signup" && $operation !== "login") {
+    if ($operation !== "identify" && $operation !== "signup" && $operation !== "login") {
       $response->set_token("web_session", null);
       $response->set_token("user_session", null);
       $response->failure("Unauthorized");
@@ -297,7 +291,7 @@ function identify(&$request, &$response, &$db)
     }
     $salt = $row["salt"];
     $challenge = base64_encode(random_bytes(64));
-    $later = date("c", time() + 12 * 60 * 60);
+    $later = date("c", time() + 30);
     $sqlLogin = "UPDATE user_login SET challenge = '$challenge', expires = '$later' WHERE username = '$username'";
     $db->exec($sqlLogin);
     $response->set_data("salt", $salt);
