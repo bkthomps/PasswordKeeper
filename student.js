@@ -100,9 +100,10 @@ async function credentials(username, password) {
 function login(userInput, passInput) {
   const username = userInput.value;
   const password = passInput.value;
-  credentials(username, password).then(function (idJson) {
+  credentials(username, password).then(async function (idJson) {
     if (idJson !== 0) {
-      const saltHashPass = hash(password.concat(idJson.salt));
+      const saltHashPass = await hash(password.concat(idJson.salt));
+      console.log(saltHashPass);
       const payload = {
         "operation": "login",
         "username": username,
@@ -153,6 +154,7 @@ async function signup(userInput, passInput, passInput2, emailInput, fullNameInpu
   }
   const salt = randomBytes(32);
   const saltHashPass = await hash(password.concat(salt));
+  console.log(saltHashPass);
   const payload = {
     "operation": "signup",
     "username": username,
