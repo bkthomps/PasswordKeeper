@@ -147,8 +147,8 @@ function signup(userInput, passInput, passInput2, emailInput, fullNameInput) {
     status("Password must not be the same as username, email, or full name");
     return;
   }
-  if (username.length > 200 || password.length > 200 || email.length > 200 || fullName.length > 200) {
-    status("Limit field length to 200 characters");
+  if (username.length > 180 || password.length > 180 || email.length > 180 || fullName.length > 180) {
+    status("Limit field length to 180 characters");
     return;
   }
   const salt = randomBytes(32);
@@ -177,15 +177,20 @@ async function save(siteIdInput, siteInput, userInput, passInput) {
   const site = siteInput.value;
   const siteUser = userInput.value;
   const sitePassword = passInput.value;
+  if (site.length > 180 || siteUser.length > 180 || sitePassword.length > 180) {
+    status("Limit field length to 180 characters");
+    return;
+  }
   const hashedPassword = localStorage.getItem("hashedMasterPassword");
   const siteIv = randomBytes(16);
-  const encrypted = await encrypt(sitePassword, hashedPassword, siteIv);
+  const encryptedSiteUser = await encrypt(siteUser, hashedPassword, siteIv);
+  const encryptedPassword = await encrypt(sitePassword, hashedPassword, siteIv);
   const payload = {
     "operation": "save",
     "siteid": siteId,
     "site": site,
-    "siteuser": siteUser,
-    "sitepassword": encrypted,
+    "siteuser": encryptedSiteUser,
+    "sitepassword": encryptedPassword,
     "iv": siteIv
   };
   serverRequest("save", payload).then(function (result) {
@@ -210,12 +215,11 @@ function loadSite(siteid, siteIdElement, siteElement, userElement, passElement) 
   const payload = {"operation": "load", "siteid": siteid};
   serverRequest("load", payload).then(async function (result) {
     if (result.response.ok) {
-      siteElement.value = result.json.site;
-      userElement.value = result.json.siteuser;
-      const cypherText = result.json.sitepasswd;
-      const hashedPassword = localStorage.getItem("hashedMasterPassword");
       const siteIv = result.json.siteiv;
-      passElement.value = await decrypt(cypherText, hashedPassword, siteIv);
+      const hashedPassword = localStorage.getItem("hashedMasterPassword");
+      siteElement.value = result.json.site;
+      userElement.value = await decrypt(result.json.siteuser, hashedPassword, siteIv);
+      passElement.value = await decrypt(result.json.sitepasswd, hashedPassword, siteIv);
     } else {
       showContent("login");
       serverStatus(result);
